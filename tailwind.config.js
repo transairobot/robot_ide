@@ -40,7 +40,10 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        'panel-border': 'hsl(var(--panel-border))',
+        panel: {
+          DEFAULT: "hsl(var(--panel))",
+          border: "hsl(var(--panel-border))",
+        },
         'drag-handle-hover': 'hsl(var(--drag-handle-hover))',
       },
       borderRadius: {

@@ -1,5 +1,8 @@
 <template>
-  <div class="h-full bg-card border-t border-border flex flex-col">
+  <div 
+    class="h-full bg-card border-t border-border flex flex-col font-mono"
+    @click="focusInput"
+  >
     <!-- Console Header -->
     <div class="flex items-center justify-between p-2 border-b border-border bg-muted/50">
       <div class="flex items-center gap-2">
@@ -11,7 +14,7 @@
           size="sm"
           variant="ghost"
           class="h-6 w-6 p-0 hover:bg-secondary"
-          @click="clearConsole"
+          @click.stop="clearConsole"
         >
           <Trash2 class="w-3 h-3" />
         </Button>
@@ -19,7 +22,7 @@
           size="sm"
           variant="ghost"
           class="h-6 w-6 p-0 hover:bg-secondary"
-          @click="exportLogs"
+          @click.stop="exportLogs"
         >
           <Download class="w-3 h-3" />
         </Button>
@@ -27,6 +30,7 @@
           size="sm"
           variant="ghost"
           class="h-6 w-6 p-0 hover:bg-secondary"
+          @click.stop="emit('close')"
         >
           <X class="w-3 h-3" />
         </Button>
@@ -36,8 +40,8 @@
     <!-- Console Messages -->
     <ScrollArea class="flex-1 overflow-hidden">
       <div 
-        ref="scrollAreaRef"
-        class="h-full p-2 font-mono text-sm"
+        ref="scrollContainerRef"
+        class="h-full p-2 text-sm"
       >
         <div
           v-for="message in messages"
@@ -62,36 +66,65 @@
             </div>
           </div>
         </div>
+        
+        <!-- Input Line -->
+        <div class="flex items-start gap-2">
+          <span class="text-xs text-muted-foreground min-w-[60px] mt-0.5">
+            {{ formatTime(new Date()) }}
+          </span>
+          <div class="flex-1 flex items-center">
+            <span class="text-blue-400 mr-1">></span>
+            <span class="text-foreground">{{ input }}</span>
+            <span v-if="isFocused" class="blinking-cursor"></span>
+          </div>
+        </div>
       </div>
     </ScrollArea>
 
-    <!-- Console Input -->
-    <div class="border-t border-border p-2">
-      <div class="flex items-center gap-2">
-        <ChevronRight class="w-4 h-4 text-muted-foreground" />
-        <Input
-          ref="inputRef"
-          v-model="input"
-          placeholder="Enter command..."
-          class="flex-1 bg-transparent border-none outline-none text-sm text-foreground font-mono placeholder:text-muted-foreground"
-          @keydown="handleKeyDown"
-        />
-      </div>
-    </div>
+    <!-- Hidden Input -->
+    <input
+      ref="inputRef"
+      v-model="input"
+      class="absolute -left-full -top-full w-0 h-0"
+      autofocus
+      @keydown="handleKeyDown"
+      @focus="isFocused = true"
+      @blur="isFocused = false"
+    />
   </div>
 </template>
+
+<style scoped>
+.blinking-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1.1em;
+  background-color: #f0f0f0;
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+  position: relative;
+  top: 2px;
+}
+
+@keyframes blink {
+  from, to {
+    background-color: transparent;
+  }
+  50% {
+    background-color: #f0f0f0;
+  }
+}
+</style>
 
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue'
 import Button from '@/components/ui/Button.vue'
-import Input from '@/components/ui/Input.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import { 
   Terminal, 
   X, 
   Trash2, 
-  Download,
-  ChevronRight
+  Download
 } from 'lucide-vue-next'
 
 interface ConsoleMessage {
@@ -100,6 +133,8 @@ interface ConsoleMessage {
   content: string
   timestamp: Date
 }
+
+const emit = defineEmits(['close'])
 
 const messages = ref<ConsoleMessage[]>([
   {
@@ -119,30 +154,37 @@ const messages = ref<ConsoleMessage[]>([
 const input = ref('')
 const commandHistory = ref<string[]>([])
 const historyIndex = ref(-1)
-const scrollAreaRef = ref<HTMLDivElement>()
+const scrollContainerRef = ref<HTMLDivElement>()
 const inputRef = ref<HTMLInputElement>()
+const isFocused = ref(false)
 
 const formatTime = (date: Date) => {
   return date.toLocaleTimeString('en-US', { 
     hour12: false, 
-    hour: '2-digit', 
-    minute: '2-digit', 
+    hour: '2-digit',
+    minute: '2-digit',
     second: '2-digit' 
   })
 }
 
 const scrollToBottom = async () => {
   await nextTick()
-  if (scrollAreaRef.value) {
-    scrollAreaRef.value.scrollTop = scrollAreaRef.value.scrollHeight
+  if (scrollContainerRef.value) {
+    scrollContainerRef.value.scrollTop = scrollContainerRef.value.scrollHeight
   }
+}
+
+const focusInput = () => {
+  inputRef.value?.focus()
 }
 
 const executeCommand = async (command: string) => {
   if (!command.trim()) return
 
   // Add command to history
-  commandHistory.value.push(command)
+  if (commandHistory.value[commandHistory.value.length - 1] !== command) {
+    commandHistory.value.push(command)
+  }
   historyIndex.value = -1
 
   // Add input message
@@ -154,6 +196,7 @@ const executeCommand = async (command: string) => {
   }
 
   messages.value.push(inputMessage)
+  await scrollToBottom()
 
   let outputMessage: ConsoleMessage
 
@@ -219,7 +262,7 @@ const executeCommand = async (command: string) => {
       break
     
     case 'clear':
-      messages.value = []
+      clearConsole()
       return
     
     case 'version':
@@ -278,7 +321,10 @@ const handleKeyDown = (e: KeyboardEvent) => {
   if (e.key === 'Enter') {
     executeCommand(input.value)
     input.value = ''
-  } else if (e.key === 'ArrowUp') {
+    return
+  }
+  
+  if (e.key === 'ArrowUp') {
     e.preventDefault()
     if (commandHistory.value.length > 0) {
       if (historyIndex.value === -1) {
@@ -288,7 +334,10 @@ const handleKeyDown = (e: KeyboardEvent) => {
       }
       input.value = commandHistory.value[historyIndex.value] || ''
     }
-  } else if (e.key === 'ArrowDown') {
+    return
+  }
+  
+  if (e.key === 'ArrowDown') {
     e.preventDefault()
     if (historyIndex.value !== -1) {
       if (historyIndex.value < commandHistory.value.length - 1) {
@@ -299,11 +348,20 @@ const handleKeyDown = (e: KeyboardEvent) => {
         input.value = ''
       }
     }
+    return
   }
 }
 
 const clearConsole = () => {
-  messages.value = []
+  messages.value = [
+    {
+      id: Date.now().toString(),
+      type: 'system',
+      content: 'Console cleared',
+      timestamp: new Date()
+    }
+  ]
+  scrollToBottom()
 }
 
 const exportLogs = () => {
@@ -324,11 +382,6 @@ const exportLogs = () => {
 
 onMounted(() => {
   scrollToBottom()
-  // Use nextTick to ensure the DOM is updated before focusing
-  nextTick(() => {
-    if (inputRef.value && typeof inputRef.value.focus === 'function') {
-      inputRef.value.focus()
-    }
-  })
+  focusInput()
 })
 </script>

@@ -7,7 +7,7 @@
     />
     
     <!-- Main Content Area -->
-    <div class="flex-1 flex">
+    <div class="flex-1 flex overflow-hidden">
       <!-- Sidebar -->
       <div 
         v-if="!sidebarCollapsed"
@@ -23,24 +23,46 @@
         <!-- Canvas Area -->
         <div 
           class="flex-1 relative"
-          :style="{ height: `${100 - consoleHeight}%` }"
+          :style="{ height: showConsole ? `${100 - consoleHeight}%` : '100%' }"
         >
           <Canvas />
         </div>
         
-        <!-- Resize Handle -->
-        <div 
-          class="h-1 bg-border hover:bg-primary/50 transition-colors cursor-row-resize"
-          @mousedown="startResize"
-        ></div>
-        
-        <!-- Console -->
-        <div 
-          class="relative"
-          :style="{ height: `${consoleHeight}%` }"
+        <template v-if="showConsole">
+          <!-- Resize Handle -->
+          <div 
+            class="h-1 bg-border hover:bg-primary/50 transition-colors cursor-row-resize"
+            @mousedown="startResize"
+          ></div>
+          
+          <!-- Console -->
+          <div 
+            class="relative"
+            :style="{ height: `${consoleHeight}%` }"
+          >
+            <Console @close="showConsole = false" />
+          </div>
+        </template>
+      </div>
+    </div>
+    
+    <!-- Status Bar -->
+    <div class="h-8 bg-card border-t border-border flex items-center justify-between px-3 text-sm text-muted-foreground">
+      <div class="flex items-center gap-4">
+        <div>Ready</div>
+        <div>Line 1, Column 1</div>
+      </div>
+      <div class="flex items-center gap-4">
+        <button 
+          class="flex items-center gap-1.5 hover:text-foreground"
+          @click="showConsole = !showConsole"
         >
-          <Console />
-        </div>
+          <Terminal class="w-4 h-4" />
+          <span>Open Console</span>
+        </button>
+        <div>UTF-8</div>
+        <div>LF</div>
+        <div>Robot Simulation IDE</div>
       </div>
     </div>
   </div>
@@ -52,10 +74,12 @@ import TopBar from './TopBar.vue'
 import Sidebar from './Sidebar.vue'
 import Canvas from './Canvas.vue'
 import Console from './Console.vue'
+import { Terminal } from 'lucide-vue-next'
 
 const sidebarCollapsed = ref(false)
 const consoleHeight = ref(25)
 const isResizing = ref(false)
+const showConsole = ref(true)
 
 const startResize = (e: MouseEvent) => {
   isResizing.value = true

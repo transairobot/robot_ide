@@ -6,10 +6,12 @@ import RobotIDE from './components/RobotIDE.vue'
   <RobotIDE />
 </template>
 
-<style scoped>
+<style>
 #app {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  margin: 0;
+  padding: 0;
 }
 </style>
