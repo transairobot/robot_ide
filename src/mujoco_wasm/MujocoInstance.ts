@@ -1,5 +1,4 @@
-import load_mujoco, { type Model, type State, type Simulation } from "./mujoco_wasm";
-import { mjtGeom } from "./mujoco_wasm";
+import load_mujoco, { Model, State, Simulation } from "../mujoco_wasm/mujoco_wasm";
 import * as THREE from 'three';
 
 let global_mujoco = await load_mujoco();
@@ -60,9 +59,9 @@ async function write_public() {
 }
 
 export class MuJoCoInstance {
-    model!: Model;
-    state!: State;
-    simulation!: Simulation;
+    model: Model;
+    state: State;
+    simulation: Simulation;
 
     constructor() {
         // 构造函数现在是同步的，需要调用init()来异步初始化
@@ -128,9 +127,8 @@ export class MuJoCoInstance {
             ];
 
             // 如果body不存在则创建它
-            if (!bodies.has(b)) {
-                const newBody = new THREE.Group();
-                bodies.set(b, newBody);
+            if (!(b in bodies)) {
+                bodies[b] = new THREE.Group();
 
                 let start_idx = this.model.name_bodyadr[b];
                 let end_idx = start_idx;
@@ -138,33 +136,30 @@ export class MuJoCoInstance {
                     end_idx++;
                 }
                 let name_buffer = names_array.subarray(start_idx, end_idx);
-                newBody.name = textDecoder.decode(name_buffer);
+                bodies[b].name = textDecoder.decode(name_buffer);
 
-                // @ts-ignore
-                newBody.bodyID = b;
-                // @ts-ignore
-                newBody.has_custom_mesh = false;
+                bodies[b].bodyID = b;
+                bodies[b].has_custom_mesh = false;
             }
 
             // 设置默认几何体。在MuJoCo中，这是一个球体
             let geometry = new THREE.SphereGeometry(size[0] * 0.5) as THREE.BufferGeometry;
 
-
-            if (type == mjtGeom.mjGEOM_PLANE) {
+            if (type == global_mujoco.mjtGeom.mjGEOM_PLANE.value) {
                 // 平面的特殊处理
                 geometry = new THREE.PlaneGeometry(100, 100);
-                geometry.rotateX(- Math.PI / 2);
-            } else if (type == mjtGeom.mjGEOM_SPHERE) {
+                geometry.rotateX( - Math.PI / 2 );
+            } else if (type == global_mujoco.mjtGeom.mjGEOM_SPHERE.value) {
                 geometry = new THREE.SphereGeometry(size[0]);
-            } else if (type == mjtGeom.mjGEOM_CAPSULE) {
+            } else if (type == global_mujoco.mjtGeom.mjGEOM_CAPSULE.value) {
                 geometry = new THREE.CapsuleGeometry(size[0], size[1] * 2.0, 20, 20);
-            } else if (type == mjtGeom.mjGEOM_ELLIPSOID) {
+            } else if (type == global_mujoco.mjtGeom.mjGEOM_ELLIPSOID.value) {
                 geometry = new THREE.SphereGeometry(1); // 下面会拉伸这个
-            } else if (type == mjtGeom.mjGEOM_CYLINDER) {
+            } else if (type == global_mujoco.mjtGeom.mjGEOM_CYLINDER.value) {
                 geometry = new THREE.CylinderGeometry(size[0], size[0], size[1] * 2.0);
-            } else if (type == mjtGeom.mjGEOM_BOX) {
+            } else if (type == global_mujoco.mjtGeom.mjGEOM_BOX.value) {
                 geometry = new THREE.BoxGeometry(size[0] * 2.0, size[2] * 2.0, size[1] * 2.0);
-            } else if (type == mjtGeom.mjGEOM_MESH) {
+            } else if (type == global_mujoco.mjtGeom.mjGEOM_MESH.value) {
                 let meshID = this.model.geom_dataid[g];
 
                 if (!(meshID in meshes)) {
@@ -203,13 +198,12 @@ export class MuJoCoInstance {
                     geometry.setAttribute("normal", new THREE.BufferAttribute(normal_buffer, 3));
                     geometry.setAttribute("uv", new THREE.BufferAttribute(uv_buffer, 2));
                     geometry.setIndex(Array.from(triangle_buffer));
-                    meshes.set(meshID, geometry);
+                    meshes[meshID] = geometry;
                 } else {
-                    geometry = meshes.get(meshID)!;
+                    geometry = meshes[meshID];
                 }
 
-                // @ts-ignore
-                bodies.get(b)!.has_custom_mesh = true;
+                bodies[b].has_custom_mesh = true;
             }
 
             // 设置材质属性
@@ -243,10 +237,9 @@ export class MuJoCoInstance {
             let mesh = new THREE.Mesh(geometry, material);
             mesh.castShadow = g == 0 ? false : true;
             mesh.receiveShadow = type != 7;
-            // @ts-ignore
             mesh.bodyID = b;
-            bodies.get(b)!.add(mesh);
-
+            bodies[b].add(mesh);
+            
             // 设置位置和旋转
             this.getPosition(this.model.geom_pos, g, mesh.position);
             if (type != 0) {
@@ -265,9 +258,7 @@ export class MuJoCoInstance {
             } else {
                 light = new THREE.SpotLight();
             }
-            // @ts-ignore
             light.decay = this.model.light_attenuation[l] * 100;
-            // @ts-ignore
             light.penumbra = 0.5;
             light.castShadow = true;
 
@@ -276,8 +267,8 @@ export class MuJoCoInstance {
             light.shadow.camera.near = 1;
             light.shadow.camera.far = 10;
 
-            if (bodies.has(0)) {
-                bodies.get(0)!.add(light);
+            if (bodies[0]) {
+                bodies[0].add(light);
             } else {
                 mujocoRoot.add(light);
             }
@@ -297,9 +288,9 @@ export class MuJoCoInstance {
 
         for (let b = 0; b < this.model.nbody; b++) {
             // 确保所有body都存在，即使没有几何体
-            if (!bodies.has(b)) {
+            if (!(b in bodies)) {
                 console.log(`创建缺失的body ${b}`);
-                const newBody = new THREE.Group();
+                bodies[b] = new THREE.Group();
 
                 // 尝试获取body名称
                 let start_idx = this.model.name_bodyadr[b];
@@ -308,20 +299,17 @@ export class MuJoCoInstance {
                     end_idx++;
                 }
                 let name_buffer = names_array.subarray(start_idx, end_idx);
-                newBody.name = textDecoder.decode(name_buffer) || `body_${b}`;
-                // @ts-ignore
-                newBody.bodyID = b;
-                // @ts-ignore
-                newBody.has_custom_mesh = false;
-                bodies.set(b, newBody);
+                bodies[b].name = textDecoder.decode(name_buffer) || `body_${b}`;
+                bodies[b].bodyID = b;
+                bodies[b].has_custom_mesh = false;
             }
 
             // 添加到层次结构
-            console.log(`添加body ${b} (${bodies.get(b)!.name}) 到层次结构`);
-            if (b == 0 || !bodies.has(0)) {
-                mujocoRoot.add(bodies.get(b)!);
+            console.log(`添加body ${b} (${bodies[b].name}) 到层次结构`);
+            if (b == 0 || !bodies[0]) {
+                mujocoRoot.add(bodies[b]);
             } else {
-                bodies.get(0)!.add(bodies.get(b)!);
+                bodies[0].add(bodies[b]);
             }
         }
 
@@ -345,15 +333,15 @@ export class MuJoCoInstance {
      * 更新Three.js对象的位置和旋转以匹配当前的MuJoCo状态
      * @param {Object} renderableData - 从getThreeJSRenderableBodies()返回的数据
      */
-    updateThreeJSBodies(renderableData: { bodies: Map<number, THREE.Group> }) {
+    updateThreeJSBodies(renderableData) {
         const { bodies } = renderableData;
 
         // 更新每个body的位置和旋转
         for (let b = 0; b < this.model.nbody; b++) {
-            if (bodies.has(b)) {
+            if (bodies[b]) {
                 // 获取body的位置和旋转
-                this.getPosition(this.simulation.xpos, b, bodies.get(b)!.position);
-                this.getQuaternion(this.simulation.xquat, b, bodies.get(b)!.quaternion);
+                this.getPosition(this.simulation.xpos, b, bodies[b].position);
+                this.getQuaternion(this.simulation.xquat, b, bodies[b].quaternion);
             }
         }
     }
@@ -364,7 +352,7 @@ export class MuJoCoInstance {
      * @param {number} index
      * @param {THREE.Vector3} target
      */
-    getPosition(buffer: Float32Array | Float64Array, index: number, target: THREE.Vector3) {
+    getPosition(buffer, index, target) {
         return target.set(
             buffer[(index * 3) + 0],
             buffer[(index * 3) + 2],
@@ -378,7 +366,7 @@ export class MuJoCoInstance {
      * @param {number} index
      * @param {THREE.Quaternion} target
      */
-    getQuaternion(buffer: Float32Array | Float64Array, index: number, target: THREE.Quaternion) {
+    getQuaternion(buffer, index, target) {
         return target.set(
             -buffer[(index * 4) + 1],
             -buffer[(index * 4) + 3],
