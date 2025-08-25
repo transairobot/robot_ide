@@ -63,6 +63,32 @@
         {{ isModelLoaded ? 'Model Loaded' : 'Loading Model...' }}
       </span></div>
       <div class="text-muted-foreground mt-1">Use mouse to control view</div>
+      <div class="text-muted-foreground mt-1">FPS: <span id="stats-panel">{{ fps }}</span></div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div v-if="isModelLoaded && actuators.length > 0" class="absolute top-4 right-4 z-10 bg-card/90 backdrop-blur-sm border border-border rounded-md text-xs text-foreground max-h-80 overflow-hidden flex flex-col">
+      <div class="flex justify-between items-center p-2 bg-secondary cursor-pointer" @click="toggleControlsPanel">
+        <div class="text-muted-foreground">Controls</div>
+        <div>{{ isJointPanelCollapsed ? '▼' : '▲' }}</div>
+      </div>
+      <div v-show="!isJointPanelCollapsed" class="overflow-y-auto p-2">
+        <div v-for="(actuator, index) in actuators" :key="index" class="mb-3 last:mb-0">
+          <div class="text-muted-foreground mb-1">{{ actuator.name }}</div>
+          <input 
+            type="range" 
+            :min="actuator.min" 
+            :max="actuator.max" 
+            step="0.01" 
+            :value="actuatorValues[index] || 0" 
+            @input="onActuatorChange(index, $event)" 
+            class="w-full"
+          />
+          <div class="text-muted-foreground text-xs mt-1">
+            Value: {{ (actuatorValues[index] || 0).toFixed(2) }} [{{ actuator.min.toFixed(2) }}, {{ actuator.max.toFixed(2) }}]
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Three.js Renderer Container -->
@@ -77,6 +103,7 @@
 import { ref, onMounted, onUnmounted, shallowRef } from 'vue'
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import Stats from 'three/examples/jsm/libs/stats.module.js';
 import Button from '@/components/ui/Button.vue'
 import { 
   ZoomIn, 
@@ -90,6 +117,15 @@ import { MuJoCoInstance } from '@/mujoco_wasm/MujocoInstance';
 
 const rendererContainerRef = ref<HTMLDivElement | null>(null);
 const isModelLoaded = ref(false);
+const fps = ref(0);
+const mujocoInstanceRef = shallowRef<MuJoCoInstance | null>(null); // Expose mujocoInstance to template
+const actuators = ref<Array<{name: string, min: number, max: number}>>([]); // Store actuator names and ranges
+const actuatorValues = ref<{[key: number]: number}>({}); // Store actuator values
+const isJointPanelCollapsed = ref(false); // Track if joint panel is collapsed
+const timestep = ref<number>(0.016); // Default timestep value
+
+// Variables for simulation timing
+let simulationInterval: number | null = null;
 
 // Three.js related references
 const scene = new THREE.Scene();
@@ -110,23 +146,28 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 let controls: OrbitControls | null = null;
 let animationRef: number | null = null;
-let mujocoInstance: MuJoCoInstance | null = null;
 let mujocoRenderableData: ReturnType<MuJoCoInstance['getThreeJSRenderableBodies']> | null = null;
+let stats: Stats | null = null;
 
-// Set up basic scene
-scene.background = new THREE.Color(0x1f2937); // Match the background color
+// FPS calculation variables
+let lastTime = performance.now();
+let frameCount = 0;
 
-// Position the camera
-camera.position.set(0, 1, 2);
+// Function to toggle controls panel collapse
+const toggleControlsPanel = () => {
+  isJointPanelCollapsed.value = !isJointPanelCollapsed.value;
+};
 
-// Set up renderer
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap; // default THREE.PCFShadowMap
-
-// Add some basic lighting if needed (MuJoCo might provide its own)
-const ambientLight = new THREE.AmbientLight(0x404040, 2); // soft white light
-scene.add(ambientLight);
+// Function to handle actuator slider change
+const onActuatorChange = (index: number, event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const value = parseFloat(target.value);
+  actuatorValues.value[index] = value;
+  
+  if (mujocoInstanceRef.value) {
+    mujocoInstanceRef.value.setActuatorControl(index, value);
+  }
+};
 
 const resizeRenderer = () => {
   if (rendererContainerRef.value) {
@@ -151,12 +192,19 @@ const resetCamera = () => {
 const animate = () => {
   animationRef = requestAnimationFrame(animate);
   
-  // Update MuJoCo simulation and Three.js objects
-  if (mujocoInstance && mujocoRenderableData) {
-    // Step the simulation (you might want to control the timestep)
-    mujocoInstance.simulation.step(); 
+  // Calculate FPS
+  frameCount++;
+  const currentTime = performance.now();
+  if (currentTime >= lastTime + 1000) {
+    fps.value = Math.round((frameCount * 1000) / (currentTime - lastTime));
+    frameCount = 0;
+    lastTime = currentTime;
+  }
+  
+  // Update Three.js objects
+  if (mujocoInstanceRef.value && mujocoRenderableData) {
     // Update the Three.js representation
-    mujocoInstance.updateThreeJSBodies(mujocoRenderableData);
+    mujocoInstanceRef.value.updateThreeJSBodies(mujocoRenderableData);
   }
   
   // Update controls
@@ -189,16 +237,39 @@ onMounted(async () => {
     
     try {
       // Initialize MuJoCoInstance
-      mujocoInstance = new MuJoCoInstance();
-      await mujocoInstance.init();
+      const instance = new MuJoCoInstance();
+      await instance.init();
+      mujocoInstanceRef.value = instance; // Expose to template
+      
+      // Get timestep
+      timestep.value = instance.getTimestep();
+      console.log('Timestep:', timestep.value);
+      
+      // Get actuator names and ranges
+      actuators.value = instance.getActuatorNamesAndRanges();
+      console.log('Actuators:', actuators.value);
+      for (let i = 0; i < actuators.value.length; i++) {
+        // Initialize with a default value, e.g., 0 or the middle of the range
+        const actuator = actuators.value[i];
+        actuatorValues.value[i] = (actuator.min + actuator.max) / 2;
+      }
       
       // Get the Three.js renderable objects
-      mujocoRenderableData = mujocoInstance.getThreeJSRenderableBodies();
+      mujocoRenderableData = instance.getThreeJSRenderableBodies();
       
       // Add the root object to the scene
       scene.add(mujocoRenderableData.mujocoRoot);
       
       isModelLoaded.value = true;
+      
+      // Start the simulation loop with a fixed timestep
+      if (timestep.value > 0) {
+        simulationInterval = window.setInterval(() => {
+          if (mujocoInstanceRef.value) {
+            mujocoInstanceRef.value.simulation.step();
+          }
+        }, timestep.value * 1000); // Convert timestep to milliseconds
+      }
       
       // Start the animation loop
       animate();
@@ -217,6 +288,10 @@ onUnmounted(() => {
     cancelAnimationFrame(animationRef);
   }
   
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+  }
+  
   if (controls) {
     controls.dispose();
   }
@@ -224,5 +299,15 @@ onUnmounted(() => {
   // Dispose of Three.js objects if necessary
   // This is a basic cleanup, you might need to dispose of geometries, materials, etc. more thoroughly
   renderer.dispose();
+  
+  // Clean up mujocoInstanceRef
+  if (mujocoInstanceRef.value) {
+    // If there are any specific cleanup methods for MuJoCoInstance, call them here
+    mujocoInstanceRef.value = null;
+  }
+  
+  // Clean up actuators and actuatorValues
+  actuators.value = [];
+  actuatorValues.value = {};
 });
 </script>
