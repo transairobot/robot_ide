@@ -1,4 +1,4 @@
-import load_mujoco, { Model, State, Simulation } from "../mujoco_wasm/mujoco_wasm";
+import load_mujoco, { type Model, type State, type Simulation } from "../mujoco_wasm/mujoco_wasm";
 import * as THREE from 'three';
 
 let global_mujoco = await load_mujoco();
