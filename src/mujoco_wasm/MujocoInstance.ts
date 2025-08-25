@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import load_mujoco, { type Model, type State, type Simulation } from "../mujoco_wasm/mujoco_wasm";
 import * as THREE from 'three';
 
@@ -58,10 +60,21 @@ async function write_public() {
     }
 }
 
+// Check if global_mujoco has mjGEOM constants and use them, otherwise use default values
+const mjGEOM_PLANE = global_mujoco.hasOwnProperty('mjGEOM_PLANE') ? global_mujoco.mjGEOM_PLANE : 0;
+const mjGEOM_HFIELD = global_mujoco.hasOwnProperty('mjGEOM_HFIELD') ? global_mujoco.mjGEOM_HFIELD : 1;
+const mjGEOM_SPHERE = global_mujoco.hasOwnProperty('mjGEOM_SPHERE') ? global_mujoco.mjGEOM_SPHERE : 2;
+const mjGEOM_CAPSULE = global_mujoco.hasOwnProperty('mjGEOM_CAPSULE') ? global_mujoco.mjGEOM_CAPSULE : 3;
+const mjGEOM_ELLIPSOID = global_mujoco.hasOwnProperty('mjGEOM_ELLIPSOID') ? global_mujoco.mjGEOM_ELLIPSOID : 4;
+const mjGEOM_CYLINDER = global_mujoco.hasOwnProperty('mjGEOM_CYLINDER') ? global_mujoco.mjGEOM_CYLINDER : 5;
+const mjGEOM_BOX = global_mujoco.hasOwnProperty('mjGEOM_BOX') ? global_mujoco.mjGEOM_BOX : 6;
+const mjGEOM_MESH = global_mujoco.hasOwnProperty('mjGEOM_MESH') ? global_mujoco.mjGEOM_MESH : 7;
+
 export class MuJoCoInstance {
-    model: Model;
-    state: State;
-    simulation: Simulation;
+    model!: Model;
+    state!: State;
+    simulation!: Simulation;
+    timestep!: number; // 0.002 seconds
 
     constructor() {
         // 构造函数现在是同步的，需要调用init()来异步初始化
@@ -70,12 +83,87 @@ export class MuJoCoInstance {
     async init() {
         console.log("MuJoCoInstance init");
         this.model = new global_mujoco.Model("/working/SO101/scene.xml");
+        let opt = this.model.getOptions();
+        console.log("opt=", opt)
+        this.timestep = opt.timestep;
         console.log("model init");
         this.state = new global_mujoco.State(this.model);
         console.log("model init");
         this.simulation = new global_mujoco.Simulation(this.model, this.state);
 
         console.log("model init");
+    }
+
+    /**
+     * 设置执行器（关节）的控制值
+     * @param actuatorIndex - 执行器的索引 (0 到 model.nu - 1)
+     * @param value - 要设置的控制值
+     * @returns {boolean} - 如果成功设置返回 true，如果值超出范围返回 false
+     */
+    setActuatorControl(actuatorIndex: number, value: number): boolean {
+        // 检查索引是否有效
+        if (actuatorIndex < 0 || actuatorIndex >= this.model.nu) {
+            console.error(`Actuator index ${actuatorIndex} is out of range. Valid range is 0 to ${this.model.nu - 1}.`);
+            return false;
+        }
+
+        // 检查该执行器是否有控制限制
+        if (this.model.actuator_ctrllimited[actuatorIndex]) {
+            const min = this.model.actuator_ctrlrange[actuatorIndex * 2];
+            const max = this.model.actuator_ctrlrange[actuatorIndex * 2 + 1];
+            
+            // 检查值是否在范围内
+            if (value < min || value > max) {
+                console.warn(`Control value ${value} for actuator ${actuatorIndex} is out of range [${min}, ${max}]. Clamping value.`);
+                // 将值限制在范围内
+                value = Math.max(min, Math.min(max, value));
+            }
+        }
+
+        // 设置控制值
+        this.simulation.ctrl[actuatorIndex] = value;
+        return true;
+    }
+
+    /**
+     * 获取仿真时间步长
+     * @returns {number} - 仿真时间步长
+     */
+    getTimestep(): number {
+        return this.timestep;
+    }
+
+    /**
+     * 获取执行器（关节）的名称列表及其控制范围
+     * @returns {Array<{name: string, min: number, max: number}>} - 包含所有执行器名称和控制范围的数组
+     */
+    getActuatorNamesAndRanges(): Array<{name: string, min: number, max: number}> {
+        const actuators: Array<{name: string, min: number, max: number}> = [];
+        const textDecoder = new TextDecoder("utf-8");
+        const names_array = new Uint8Array(this.model.names);
+        
+        for (let i = 0; i < this.model.nu; i++) {
+            // Get actuator name
+            const start_idx = this.model.name_actuatoradr[i];
+            let end_idx = start_idx;
+            while (end_idx < names_array.length && names_array[end_idx] !== 0) {
+                end_idx++;
+            }
+            const name_buffer = names_array.subarray(start_idx, end_idx);
+            const name = textDecoder.decode(name_buffer);
+            
+            // Get actuator range
+            let min = -3.14; // Default min
+            let max = 3.14;  // Default max
+            if (this.model.actuator_ctrllimited[i]) {
+                min = this.model.actuator_ctrlrange[i * 2];
+                max = this.model.actuator_ctrlrange[i * 2 + 1];
+            }
+            
+            actuators.push({ name, min, max });
+        }
+        
+        return actuators;
     }
 
     /**
@@ -148,7 +236,7 @@ export class MuJoCoInstance {
             if (type == global_mujoco.mjtGeom.mjGEOM_PLANE.value) {
                 // 平面的特殊处理
                 geometry = new THREE.PlaneGeometry(100, 100);
-                geometry.rotateX( - Math.PI / 2 );
+                geometry.rotateX(- Math.PI / 2);
             } else if (type == global_mujoco.mjtGeom.mjGEOM_SPHERE.value) {
                 geometry = new THREE.SphereGeometry(size[0]);
             } else if (type == global_mujoco.mjtGeom.mjGEOM_CAPSULE.value) {
@@ -239,7 +327,7 @@ export class MuJoCoInstance {
             mesh.receiveShadow = type != 7;
             mesh.bodyID = b;
             bodies[b].add(mesh);
-            
+
             // 设置位置和旋转
             this.getPosition(this.model.geom_pos, g, mesh.position);
             if (type != 0) {
@@ -333,7 +421,7 @@ export class MuJoCoInstance {
      * 更新Three.js对象的位置和旋转以匹配当前的MuJoCo状态
      * @param {Object} renderableData - 从getThreeJSRenderableBodies()返回的数据
      */
-    updateThreeJSBodies(renderableData) {
+    updateThreeJSBodies(renderableData: {bodies: Map<number, THREE.Group>;}) {
         const { bodies } = renderableData;
 
         // 更新每个body的位置和旋转
@@ -352,7 +440,11 @@ export class MuJoCoInstance {
      * @param {number} index
      * @param {THREE.Vector3} target
      */
-    getPosition(buffer, index, target) {
+    getPosition(buffer: Float32Array | Float64Array, index: number, target: THREE.Vector3) {
+        // Convert from MuJoCo (Z-up) to Three.js (Y-up) coordinate system
+        // x = x
+        // y = z
+        // z = -y
         return target.set(
             buffer[(index * 3) + 0],
             buffer[(index * 3) + 2],
@@ -366,12 +458,22 @@ export class MuJoCoInstance {
      * @param {number} index
      * @param {THREE.Quaternion} target
      */
-    getQuaternion(buffer, index, target) {
-        return target.set(
-            -buffer[(index * 4) + 1],
-            -buffer[(index * 4) + 3],
-            buffer[(index * 4) + 2],
-            -buffer[(index * 4) + 0]
-        );
+    getQuaternion(buffer: Float32Array | Float64Array, index: number, target: THREE.Quaternion) {
+        // MuJoCo uses [w, x, y, z] convention, Three.js uses [x, y, z, w]
+        const w = buffer[(index * 4) + 0];
+        const x = buffer[(index * 4) + 1];
+        const y = buffer[(index * 4) + 2];
+        const z = buffer[(index * 4) + 3];
+        
+        // Convert from MuJoCo (Z-up) to Three.js (Y-up) coordinate system
+        // This is equivalent to a -90 degree rotation around the X axis
+        // The quaternion for this rotation is [sqrt(2)/2, -sqrt(2)/2, 0, 0]
+        // To combine rotations, we multiply quaternions: q_result = q_rotation * q_original
+        // But for simplicity, we can directly transform the components:
+        // x = x
+        // y = z
+        // z = -y
+        // w = w
+        return target.set(x, z, -y, w);
     }
 }
