@@ -129,7 +129,7 @@ let simulationInterval: number | null = null;
 
 // Three.js related references
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+let camera: THREE.PerspectiveCamera;
 // 创建渲染器
 const renderer = new THREE.WebGLRenderer({ 
   antialias: true,
@@ -138,7 +138,7 @@ const renderer = new THREE.WebGLRenderer({
 });
 
 // 设置像素比例以避免模糊
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
 // 设置渲染质量
 renderer.shadowMap.enabled = true;
@@ -172,21 +172,39 @@ const onActuatorChange = (index: number, event: Event) => {
 const resizeRenderer = () => {
   if (rendererContainerRef.value) {
     const container = rendererContainerRef.value;
-    camera.aspect = container.clientWidth / container.clientHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    
+    // Initialize camera if not already done
+    if (!camera) {
+      camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+      camera.position.set(0, 1, 2);
+      camera.lookAt(0, 0, 0);
+    } else {
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+    
+    renderer.setSize(width, height);
   }
 };
 
 const resetCamera = () => {
   // Reset camera position and controls target
-  camera.position.set(0, 1, 2);
-  camera.lookAt(0, 0, 0);
+  if (camera) {
+    camera.position.set(0, 1, 2);
+    camera.lookAt(0, 0, 0);
+  }
   if (controls) {
     controls.target.set(0, 0, 0);
     controls.update();
   }
 };
+
+// Expose resize method for parent component to call
+defineExpose({
+  resize: resizeRenderer
+});
 
 // Animation loop
 const animate = () => {
@@ -227,13 +245,15 @@ onMounted(async () => {
     // Add window resize listener
     window.addEventListener('resize', resizeRenderer);
     
-    // Initialize OrbitControls
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
-    controls.dampingFactor = 0.05;
-    controls.screenSpacePanning = false;
-    controls.minDistance = 0.5;
-    controls.maxDistance = 10;
+    // Initialize OrbitControls after camera is created
+    if (camera) {
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+      controls.dampingFactor = 0.05;
+      controls.screenSpacePanning = false;
+      controls.minDistance = 0.5;
+      controls.maxDistance = 10;
+    }
     
     try {
       // Initialize MuJoCoInstance

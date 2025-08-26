@@ -1,28 +1,26 @@
 <template>
-  <div class="h-full bg-card border-r border-border flex flex-col">
+  <div class="h-full bg-card border-r border-border flex">
     <!-- Tabs -->
-    <div class="flex-1 flex flex-col">
-      <div class="flex border-b border-border">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          @click="activeTab = tab.id"
-          :class="[
-            'flex-1 px-3 py-2 text-xs font-medium transition-colors',
-            activeTab === tab.id
-              ? 'bg-background text-foreground border-b-2 border-primary'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-          ]"
-        >
-          <component :is="tab.icon" class="w-4 h-4 mr-1" />
-          {{ tab.label }}
-        </button>
-      </div>
+    <div class="flex flex-col border-r border-border w-16">
+      <button
+        v-for="tab in tabs"
+        :key="tab.id"
+        @click="activeTab = tab.id"
+        :class="[
+          'px-3 py-4 text-xs font-medium transition-colors flex flex-col items-center',
+          activeTab === tab.id
+            ? 'bg-background text-foreground border-l-2 border-primary'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+        ]"
+      >
+        <component :is="tab.icon" class="w-5 h-5" />
+      </button>
+    </div>
 
-      <!-- Tab Content -->
-      <div class="flex-1 overflow-hidden">
-        <!-- Robot Apps Tab -->
-        <div v-if="activeTab === 'apps'" class="h-full flex flex-col">
+    <!-- Tab Content -->
+    <div class="flex-1 overflow-hidden">
+      <!-- Robot Apps Tab -->
+      <div v-if="activeTab === 'apps'" class="h-full flex flex-col">
           <div class="p-3 border-b border-border">
             <Button size="sm" class="w-full">
               <Plus class="w-4 h-4 mr-1" />
@@ -88,7 +86,9 @@
             <div
               v-for="scene in scenes"
               :key="scene.id"
-              class="p-3 mb-2 bg-background rounded-lg border border-border hover:bg-muted transition-colors"
+              class="p-3 mb-2 bg-background rounded-lg border border-border hover:bg-muted transition-colors relative"
+              @mouseenter="showSceneImage(scene)"
+              @mouseleave="hideSceneImage"
             >
               <div class="flex items-start justify-between">
                 <div class="flex-1">
@@ -104,6 +104,18 @@
                   <Eye v-if="scene.visible" class="w-3 h-3" />
                   <EyeOff v-else class="w-3 h-3" />
                 </Button>
+              </div>
+              <!-- Image preview (hidden by default) -->
+              <div 
+                v-if="hoveredScene && hoveredScene.id === scene.id" 
+                class="absolute top-full left-0 mt-2 w-64 h-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 overflow-hidden"
+              >
+                <img 
+                  :src="scene.img" 
+                  :alt="scene.name" 
+                  class="w-full h-full object-cover"
+                  @error="handleImageError"
+                />
               </div>
             </div>
           </ScrollArea>
@@ -186,11 +198,10 @@
         </div>
       </div>
     </div>
-  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
@@ -212,6 +223,16 @@ interface StoreItem {
   description: string
   version?: string
   installed?: boolean
+  visible?: boolean
+}
+
+// Define the Scene interface
+interface Scene {
+  id: string
+  name: string
+  description: string
+  img: string // URL to the image
+  mjcf_xml: string // Path to the MJCF XML file
   visible?: boolean
 }
 
@@ -238,11 +259,60 @@ const robotApps = ref<StoreItem[]>([
   { id: "3", name: "SLAM Navigation", description: "Simultaneous localization and mapping", version: "1.5.3", installed: true },
 ])
 
-const scenes = ref<StoreItem[]>([
-  { id: "1", name: "Warehouse", description: "Industrial warehouse environment", visible: true },
-  { id: "2", name: "Office", description: "Modern office space", visible: false },
-  { id: "3", name: "Factory Floor", description: "Manufacturing floor simulation", visible: true },
-])
+// Modify scenes to fetch from API
+const scenes = ref<Scene[]>([])
+
+// Reactive variable to track the hovered scene
+const hoveredScene = ref<Scene | null>(null);
+
+// Function to show scene image on hover
+const showSceneImage = (scene: Scene) => {
+  hoveredScene.value = scene;
+};
+
+// Function to hide scene image when not hovering
+const hideSceneImage = () => {
+  hoveredScene.value = null;
+};
+
+// Function to handle image loading errors
+const handleImageError = (event: Event) => {
+  const target = event.target as HTMLImageElement;
+  console.warn(`Failed to load image: ${target.src}`);
+  // Optionally, you can set a default image or hide the image container
+  // target.src = '/images/default-scene.png'; // Set a default image
+  // Or hide the parent container
+  // target.parentElement.style.display = 'none';
+};
+
+// Fetch scenes from the backend API
+const fetchScenes = async () => {
+  try {
+    // TODO: Replace with the actual backend API URL
+    const response = await fetch('/api/scenes');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch scenes: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    scenes.value = data.map((scene: any) => ({
+      ...scene,
+      visible: scene.visible ?? true // Default to true if not specified
+    }));
+  } catch (error) {
+    console.error("Error fetching scenes:", error);
+    // Fallback to some default scenes if API call fails
+    scenes.value = [
+      { id: "1", name: "Warehouse", description: "Industrial warehouse environment", img: "/images/warehouse.jpg", mjcf_xml: "/models/warehouse.xml", visible: true },
+      { id: "2", name: "Office", description: "Modern office space", img: "/images/office.jpg", mjcf_xml: "/models/office.xml", visible: false },
+      { id: "3", name: "Factory Floor", description: "Manufacturing floor simulation", img: "/images/factory.jpg", mjcf_xml: "/models/factory.xml", visible: true },
+    ];
+  }
+};
+
+// Call fetchScenes when the component is mounted
+onMounted(() => {
+  fetchScenes();
+});
 
 const assets = ref<StoreItem[]>([
   { id: "1", name: "bottle.stl", description: "A plastic water bottle" },
@@ -260,7 +330,7 @@ const chatMessages = ref<ChatMessage[]>([
   }
 ])
 
-const toggleSceneVisibility = (scene: StoreItem) => {
+const toggleSceneVisibility = (scene: Scene) => {
   scene.visible = !scene.visible
 }
 
