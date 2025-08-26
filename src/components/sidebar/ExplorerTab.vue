@@ -173,6 +173,11 @@ import {
   X
 } from 'lucide-vue-next'
 
+// Define emits
+const emit = defineEmits<{
+  'file-selected': [fileItem: FileItem]
+}>()
+
 interface FileItem {
   name: string
   path: string
@@ -488,6 +493,9 @@ const formatFileSize = (bytes: number): string => {
 const selectFile = async (item: FileItem) => {
   selectedFile.value = item
   console.log('Selected file:', item.path)
+  
+  // Emit file selection event to parent
+  emit('file-selected', item)
   
   // File content is already loaded as binary data during upload
   if (item.type === 'file' && item.content) {
