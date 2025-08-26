@@ -27,7 +27,7 @@
       </div>
       
       <!-- Main Editor Area -->
-      <div class="flex-1 flex flex-col min-h-0">
+      <div class="flex-1 flex flex-col min-h-0 min-w-0">
         <!-- Canvas Area -->
         <div 
           class="flex-1 relative min-h-0"
