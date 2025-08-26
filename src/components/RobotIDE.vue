@@ -87,7 +87,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import TopBar from './TopBar.vue'
-import Sidebar from './Sidebar.vue'
+import Sidebar from './sidebar'
 import Canvas from './Canvas.vue'
 import Console from './Console.vue'
 import { Terminal } from 'lucide-vue-next'
