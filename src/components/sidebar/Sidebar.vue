@@ -20,7 +20,10 @@
     <!-- Tab Content -->
     <div v-if="!isCollapsed" class="flex-1 overflow-hidden">
       <!-- Explorer Tab -->
-      <ExplorerTab v-if="activeTab === 'explorer'" />
+      <ExplorerTab 
+        v-if="activeTab === 'explorer'" 
+        @file-selected="emit('file-selected', $event)"
+      />
       
       <!-- Robot Apps Tab -->
       <AppsTab v-if="activeTab === 'apps'" />
@@ -55,6 +58,7 @@ import ExplorerTab from './ExplorerTab.vue'
 // Define emits
 const emit = defineEmits<{
   'content-collapsed': [collapsed: boolean]
+  'file-selected': [fileItem: any]
 }>()
 
 const activeTab = ref('explorer')
