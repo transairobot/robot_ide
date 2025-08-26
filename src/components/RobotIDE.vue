@@ -2,25 +2,25 @@
   <div class="h-screen w-full flex flex-col bg-background">
     <!-- Top Bar -->
     <div class="h-12 flex-shrink-0">
-      <TopBar 
-        :sidebar-collapsed="sidebarCollapsed"
-        @toggle-sidebar="sidebarCollapsed = !sidebarCollapsed"
-      />
+      <TopBar />
     </div>
     
     <!-- Main Content Area -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Sidebar -->
       <div 
-        v-if="!sidebarCollapsed"
-        class="w-80 min-w-[240px] max-w-[400px] relative flex-shrink-0 flex flex-col"
+        :class="[
+          'relative flex-shrink-0 flex flex-col',
+          sidebarContentCollapsed ? 'w-16' : 'w-80 min-w-[240px] max-w-[400px]'
+        ]"
         ref="sidebarRef"
       >
         <div class="flex-1 overflow-auto">
-          <Sidebar />
+          <Sidebar @content-collapsed="handleSidebarContentCollapse" />
         </div>
-        <!-- Resize Handle -->
+        <!-- Resize Handle (only show when content is not collapsed) -->
         <div 
+          v-if="!sidebarContentCollapsed"
           class="absolute right-0 top-0 w-1 h-full bg-border hover:bg-primary/50 transition-colors cursor-col-resize"
           @mousedown="startSidebarResize"
         ></div>
@@ -85,14 +85,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import TopBar from './TopBar.vue'
 import Sidebar from './Sidebar.vue'
 import Canvas from './Canvas.vue'
 import Console from './Console.vue'
 import { Terminal } from 'lucide-vue-next'
 
-const sidebarCollapsed = ref(false)
+const sidebarContentCollapsed = ref(false)
 const consoleHeight = ref(200)
 const showConsole = ref(true)
 
@@ -101,6 +101,27 @@ const sidebarRef = ref<HTMLElement | null>(null)
 const canvasContainerRef = ref<HTMLElement | null>(null)
 const consoleContainerRef = ref<HTMLElement | null>(null)
 const canvasRef = ref<InstanceType<typeof Canvas> | null>(null)
+
+// Handle sidebar content collapse state
+const handleSidebarContentCollapse = (collapsed: boolean) => {
+  sidebarContentCollapsed.value = collapsed
+  
+  // Resize canvas when sidebar content is collapsed/expanded
+  nextTick(() => {
+    if (canvasRef.value) {
+      canvasRef.value.resize()
+    }
+  })
+}
+
+// Watch for console visibility changes and resize canvas
+watch(showConsole, () => {
+  nextTick(() => {
+    if (canvasRef.value) {
+      canvasRef.value.resize()
+    }
+  })
+})
 
 // Sidebar resizing
 const startSidebarResize = (e: MouseEvent) => {
