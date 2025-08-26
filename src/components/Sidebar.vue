@@ -5,7 +5,7 @@
       <button
         v-for="tab in tabs"
         :key="tab.id"
-        @click="activeTab = tab.id"
+        @click="handleTabClick(tab.id)"
         :class="[
           'px-3 py-4 text-xs font-medium transition-colors flex flex-col items-center',
           activeTab === tab.id
@@ -18,7 +18,7 @@
     </div>
 
     <!-- Tab Content -->
-    <div class="flex-1 overflow-hidden">
+    <div v-if="!isCollapsed" class="flex-1 overflow-hidden">
       <!-- Robot Apps Tab -->
       <div v-if="activeTab === 'apps'" class="h-full flex flex-col">
           <div class="p-3 border-b border-border">
@@ -201,7 +201,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import Input from '@/components/ui/Input.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
@@ -216,6 +216,11 @@ import {
   Eye,
   EyeOff
 } from 'lucide-vue-next'
+
+// Define emits
+const emit = defineEmits<{
+  'content-collapsed': [collapsed: boolean]
+}>()
 
 interface StoreItem {
   id: string
@@ -244,6 +249,7 @@ interface ChatMessage {
 }
 
 const activeTab = ref('apps')
+const isCollapsed = ref(false)
 const userInput = ref('')
 
 const tabs = [
@@ -333,6 +339,23 @@ const chatMessages = ref<ChatMessage[]>([
 const toggleSceneVisibility = (scene: Scene) => {
   scene.visible = !scene.visible
 }
+
+// Handle tab click with collapse functionality
+const handleTabClick = (tabId: string) => {
+  if (activeTab.value === tabId && !isCollapsed.value) {
+    // If clicking the same active tab and content is visible, collapse it
+    isCollapsed.value = true
+  } else {
+    // If clicking a different tab or content is collapsed, show the tab content
+    activeTab.value = tabId
+    isCollapsed.value = false
+  }
+}
+
+// Watch for collapse state changes and emit to parent
+watch(isCollapsed, (newValue) => {
+  emit('content-collapsed', newValue)
+})
 
 // Wrapper function for sending message
 const handleSendMessage = () => {

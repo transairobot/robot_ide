@@ -2,16 +2,6 @@
   <div class="h-12 bg-card border-b border-border flex items-center justify-between px-4">
     <!-- Left Section -->
     <div class="flex items-center gap-3">
-      <Button
-        variant="ghost"
-        size="sm"
-        @click="$emit('toggleSidebar')"
-        class="p-2 h-8 w-8 text-foreground hover:bg-secondary hover:text-primary"
-      >
-        <PanelLeftOpen v-if="sidebarCollapsed" :size="16" />
-        <PanelLeftClose v-else :size="16" />
-      </Button>
-      
       <div class="flex items-center gap-1">
         <Button variant="ghost" size="sm" class="p-2 h-8 w-8">
           <Menu :size="16" />
@@ -75,17 +65,6 @@ import {
   Square, 
   RotateCcw, 
   Settings, 
-  Maximize2,
-  PanelLeftOpen,
-  PanelLeftClose
+  Maximize2
 } from 'lucide-vue-next'
-
-interface Props {
-  sidebarCollapsed: boolean
-}
-
-defineProps<Props>()
-defineEmits<{
-  toggleSidebar: []
-}>()
 </script>
