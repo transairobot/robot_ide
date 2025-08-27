@@ -185,10 +185,10 @@
 import { ref, onMounted, onUnmounted, nextTick, watch, getCurrentInstance } from 'vue'
 import TopBar from './TopBar.vue'
 import Sidebar from './sidebar'
-import Canvas from './Canvas.vue'
+import Canvas from './editor_tab/Canvas.vue'
 import Console from './Console.vue'
-import TextEditor from './TextEditor.vue'
-import ThreeDViewer from './3DViewer.vue'
+import TextEditor from './editor_tab/TextEditor.vue'
+import ThreeDViewer from './editor_tab/3DViewer.vue'
 import { Terminal, X, Plus, Box, FileText, FileCode, Image, Video, Archive, Package } from 'lucide-vue-next'
 import { writeFilesToMuJoCoFS } from '@/mujoco_wasm/MujocoInstance'
 
