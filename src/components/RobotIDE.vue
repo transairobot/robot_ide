@@ -11,14 +11,17 @@
       <div 
         :class="[
           'relative flex-shrink-0 flex flex-col',
-          sidebarContentCollapsed ? 'w-16' : 'w-80 min-w-[240px] max-w-[400px]'
+          sidebarContentCollapsed ? 'w-16' : 'w-80 min-w-[240px] max-w-[800px]'
         ]"
-        ref="sidebarRef"
+        ref="sidebarContainerRef"
       >
         <div class="flex-1 overflow-auto">
           <Sidebar 
             @content-collapsed="handleSidebarContentCollapse"
             @file-selected="handleFileSelected"
+            @simulation="handleSimulation"
+            @files-loaded="syncFilesToMuJoCoFS"
+            ref="sidebarRef"
           />
         </div>
         <!-- Resize Handle (only show when content is not collapsed) -->
@@ -108,6 +111,8 @@
           >
             <Canvas 
               v-if="tab.type === 'canvas'"
+              :file-path="tab.simulationFilePath"
+              :is-active="activeEditorTab === tab.id"
               :ref="el => setCanvasRef(tab.id, el)"
             />
             <TextEditor
@@ -158,6 +163,9 @@
     <div class="h-6 bg-card border-t border-border flex items-center justify-between px-3 text-xs text-muted-foreground flex-shrink-0">
       <div class="flex items-center gap-4">
         <div>Ready</div>
+        <button @click="syncFilesToMuJoCoFS" class="text-blue-500 hover:text-blue-700">
+          Sync Files to MuJoCo
+        </button>
       </div>
       <div class="flex items-center gap-4">
         <button 
@@ -174,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, watch, getCurrentInstance } from 'vue'
 import TopBar from './TopBar.vue'
 import Sidebar from './sidebar'
 import Canvas from './Canvas.vue'
@@ -182,6 +190,7 @@ import Console from './Console.vue'
 import TextEditor from './TextEditor.vue'
 import ThreeDViewer from './3DViewer.vue'
 import { Terminal, X, Plus, Box, FileText, FileCode, Image, Video, Archive, Package } from 'lucide-vue-next'
+import { writeFilesToMuJoCoFS } from '@/mujoco_wasm/MujocoInstance'
 
 const sidebarContentCollapsed = ref(false)
 const consoleHeight = ref(200)
@@ -196,18 +205,12 @@ interface EditorTab {
   filePath?: string
   fileItem?: any // Add fileItem to store the complete file object
   closable?: boolean
+  simulationFilePath?: string // Add simulation file path for canvas tabs
 }
 
-const editorTabs = ref<EditorTab[]>([
-  {
-    id: 'canvas-1',
-    title: 'Canvas',
-    type: 'canvas',
-    closable: false
-  }
-])
+const editorTabs = ref<EditorTab[]>([])
 
-const activeEditorTab = ref('canvas-1')
+const activeEditorTab = ref('')
 const showTabMenu = ref(false)
 
 // Canvas refs management
@@ -215,7 +218,8 @@ const canvasRefs = ref<Map<string, InstanceType<typeof Canvas>>>(new Map())
 const threeDViewerRefs = ref<Map<string, InstanceType<typeof ThreeDViewer>>>(new Map())
 
 // References for resizing
-const sidebarRef = ref<HTMLElement | null>(null)
+const sidebarRef = ref<InstanceType<typeof Sidebar> | null>(null)
+const sidebarContainerRef = ref<HTMLElement | null>(null)
 const consoleContainerRef = ref<HTMLElement | null>(null)
 
 // Editor tab management functions
@@ -228,8 +232,8 @@ const closeEditorTab = (tabId: string) => {
   const tabIndex = editorTabs.value.findIndex(tab => tab.id === tabId)
   if (tabIndex === -1) return
   
-  // Don't close if it's the only tab or not closable
-  if (editorTabs.value.length === 1 || editorTabs.value[tabIndex].closable === false) return
+  // Don't close if not closable
+  if (editorTabs.value[tabIndex].closable === false) return
   
   // Remove tab
   editorTabs.value.splice(tabIndex, 1)
@@ -242,8 +246,12 @@ const closeEditorTab = (tabId: string) => {
   
   // Switch to another tab if the closed tab was active
   if (activeEditorTab.value === tabId) {
-    const newActiveIndex = Math.min(tabIndex, editorTabs.value.length - 1)
-    activeEditorTab.value = editorTabs.value[newActiveIndex].id
+    if (editorTabs.value.length > 0) {
+      const newActiveIndex = Math.min(tabIndex, editorTabs.value.length - 1)
+      activeEditorTab.value = editorTabs.value[newActiveIndex].id
+    } else {
+      activeEditorTab.value = ''
+    }
   }
 }
 
@@ -320,6 +328,34 @@ const getTabIcon = (type: string) => {
     default:
       return FileCode
   }
+}
+
+// Handle simulation request from Explorer
+const handleSimulation = (fileItem: any) => {
+  console.log('Creating simulation tab for:', fileItem.path)
+  
+  // Check if a simulation tab for this file already exists
+  const existingTab = editorTabs.value.find(tab => 
+    tab.type === 'canvas' && tab.simulationFilePath === fileItem.path
+  )
+  
+  if (existingTab) {
+    activeEditorTab.value = existingTab.id
+    return
+  }
+  
+  // Create new canvas tab for simulation
+  const newId = `simulation-${Date.now()}`
+  const newTab: EditorTab = {
+    id: newId,
+    title: `Simulation - ${fileItem.name}`,
+    type: 'canvas',
+    simulationFilePath: fileItem.path,
+    closable: true
+  }
+  
+  editorTabs.value.push(newTab)
+  activeEditorTab.value = newId
 }
 
 // Handle file selection from Explorer
@@ -403,6 +439,43 @@ const handleFileSelected = (fileItem: any) => {
   }
 }
 
+/**
+ * 同步explorer中的文件到MuJoCo FS
+ * @param fileTree - 文件树结构
+ */
+const syncFilesToMuJoCo = (fileTree: any[]) => {
+  // 调用MuJoCo实例的同步方法
+  writeFilesToMuJoCoFS(fileTree);
+  console.log('文件已同步到MuJoCo FS');
+}
+
+/**
+ * 从Explorer获取文件树并同步到MuJoCo FS
+ */
+const syncFilesToMuJoCoFS = async () => {
+  console.log("syncFilesToMuJoCoFS")
+  // 获取ExplorerTab实例
+  const sidebar = sidebarRef.value;
+  if (!sidebar) {
+    console.warn('无法获取Sidebar引用');
+    return;
+  }
+  
+  // 获取ExplorerTab实例
+  const explorerTab = sidebar.getExplorerTab();
+  if (!explorerTab) {
+    console.warn('无法获取ExplorerTab引用');
+    return;
+  }
+  
+  // 获取文件树
+  const fileTree = explorerTab.getFileTree();
+  console.log('获取到文件树:', fileTree);
+  
+  // 同步文件到MuJoCo FS
+  syncFilesToMuJoCo(fileTree);
+}
+
 // Helper function to determine if a file is a text file
 const isTextFile = (filename: string): boolean => {
   const textExtensions = [
@@ -483,12 +556,12 @@ onUnmounted(() => {
 const startSidebarResize = (e: MouseEvent) => {
   e.preventDefault()
   const startX = e.clientX
-  const startWidth = sidebarRef.value?.offsetWidth || 320
+  const startWidth = sidebarContainerRef.value?.offsetWidth || 320
   
   const doDrag = (e: MouseEvent) => {
-    if (!sidebarRef.value) return
+    if (!sidebarContainerRef.value) return
     const newWidth = startWidth + (e.clientX - startX)
-    sidebarRef.value.style.width = Math.max(240, Math.min(400, newWidth)) + 'px'
+    sidebarContainerRef.value.style.width = Math.max(240, Math.min(1000, newWidth)) + 'px'
     
     // Resize all canvas instances when sidebar is resized
     canvasRefs.value.forEach(canvasRef => {

@@ -23,6 +23,9 @@
       <ExplorerTab 
         v-if="activeTab === 'explorer'" 
         @file-selected="emit('file-selected', $event)"
+        @simulation="emit('simulation', $event)"
+        @files-loaded="emit('files-loaded')"
+        ref="explorerTabRef"
       />
       
       <!-- Robot Apps Tab -->
@@ -59,10 +62,13 @@ import ExplorerTab from './ExplorerTab.vue'
 const emit = defineEmits<{
   'content-collapsed': [collapsed: boolean]
   'file-selected': [fileItem: any]
+  'simulation': [fileItem: any]
+  'files-loaded': []
 }>()
 
 const activeTab = ref('explorer')
 const isCollapsed = ref(false)
+const explorerTabRef = ref<InstanceType<typeof ExplorerTab> | null>(null)
 
 const tabs = [
   { id: 'explorer', label: 'Explorer', icon: FolderOpen },
@@ -87,5 +93,10 @@ const handleTabClick = (tabId: string) => {
 // Watch for collapse state changes and emit to parent
 watch(isCollapsed, (newValue) => {
   emit('content-collapsed', newValue)
+})
+
+// 暴露ExplorerTab引用给父组件
+defineExpose({
+  getExplorerTab: () => explorerTabRef.value
 })
 </script>

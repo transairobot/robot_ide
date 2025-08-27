@@ -2,7 +2,7 @@
   <div>
     <div
       :class="[
-        'flex items-center gap-3 px-2 py-2 text-base rounded cursor-pointer hover:bg-accent/50',
+        'group flex items-center gap-3 px-2 py-2 text-base rounded cursor-pointer hover:bg-accent/50',
         { 'bg-accent text-accent-foreground': isSelected }
       ]"
       :style="{ paddingLeft: `${level * 16 + 4}px` }"
@@ -32,6 +32,14 @@
       <span v-if="item.type === 'file' && item.size" class="text-sm text-muted-foreground">
         {{ formatFileSize(item.size) }}
       </span>
+
+      <!-- Three Dots Menu -->
+      <button
+        @click.stop="toggleMenu"
+        class="w-6 h-6 flex items-center justify-center hover:bg-accent rounded opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <MoreHorizontal class="w-4 h-4" />
+      </button>
     </div>
 
     <!-- Children (for folders) -->
@@ -61,7 +69,8 @@ import {
   FileImage,
   FileVideo,
   FileArchive,
-  Settings
+  Settings,
+  MoreHorizontal
 } from 'lucide-vue-next'
 
 interface FileItem {
@@ -92,6 +101,10 @@ const isSelected = computed(() => {
   // This would be managed by parent component in a real app
   return false
 })
+
+const toggleMenu = (event: MouseEvent) => {
+  emit('context-menu', event, props.item)
+}
 
 const getFileIcon = (item: FileItem) => {
   if (item.type === 'folder') {

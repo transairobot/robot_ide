@@ -244,7 +244,7 @@ const initThreeJS = () => {
 
 // Load GLTF model from ArrayBuffer
 const loadGLTFFromArrayBuffer = async (data: ArrayBuffer) => {
-  let gltf = await gltfLoader.parseAsync(data, "");
+  const gltf = await gltfLoader.parseAsync(data, "");
   const model = gltf.scene;
 
   // --- 居中并缩放模型 ---

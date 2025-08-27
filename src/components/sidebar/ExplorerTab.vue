@@ -57,7 +57,6 @@
     <!-- File Tree -->
     <ScrollArea class="flex-1">
       <div class="p-2">
-        <div class="text-base text-muted-foreground mb-3 px-1">{{ currentPath }}</div>
         <FileTreeNode
           v-for="item in fileTree"
           :key="item.path"
@@ -170,12 +169,15 @@ import {
   Trash2,
   Edit,
   Download,
+  Play,
   X
 } from 'lucide-vue-next'
 
 // Define emits
 const emit = defineEmits<{
   'file-selected': [fileItem: FileItem]
+  'simulation': [fileItem: FileItem]
+  'files-loaded': []
 }>()
 
 interface FileItem {
@@ -189,7 +191,6 @@ interface FileItem {
   expanded?: boolean
 }
 
-const currentPath = ref('/workspace')
 const fileTree = ref<FileItem[]>([])
 const selectedFile = ref<FileItem | null>(null)
 
@@ -219,22 +220,157 @@ const contextMenu = ref({
 })
 
 const contextMenuActions = [
+  { label: 'Simulation', icon: Play, action: 'simulation' },
   { label: 'Copy', icon: Copy, action: 'copy' },
   { label: 'Rename', icon: Edit, action: 'rename' },
   { label: 'Download', icon: Download, action: 'download' },
   { label: 'Delete', icon: Trash2, action: 'delete' },
 ]
 
+// Create sample files based on known SO101 structure
+const loadDefaultFiles = async () => {
+  const files = [
+        "SO101/scene.xml",
+        "SO101/README.md",
+        "SO101/so101_old_calib.xml",
+        "SO101/assets/motor_holder_so101_base_v1.part",
+        "SO101/assets/rotation_pitch_so101_v1.stl",
+        "SO101/assets/base_so101_v2.stl",
+        "SO101/assets/upper_arm_so101_v1.part",
+        "SO101/assets/upper_arm_so101_v1.stl",
+        "SO101/assets/motor_holder_so101_wrist_v1.stl",
+        "SO101/assets/moving_jaw_so101_v1.part",
+        "SO101/assets/sts3215_03a_no_horn_v1.part",
+        "SO101/assets/wrist_roll_pitch_so101_v2.part",
+        "SO101/assets/sts3215_03a_v1.part",
+        "SO101/assets/under_arm_so101_v1.stl",
+        "SO101/assets/sts3215_03a_v1.stl",
+        "SO101/assets/wrist_roll_follower_so101_v1.part",
+        "SO101/assets/sts3215_03a_no_horn_v1.stl",
+        "SO101/assets/motor_holder_so101_wrist_v1.part",
+        "SO101/assets/base_motor_holder_so101_v1.stl",
+        "SO101/assets/motor_holder_so101_base_v1.stl",
+        "SO101/assets/base_motor_holder_so101_v1.part",
+        "SO101/assets/rotation_pitch_so101_v1.part",
+        "SO101/assets/wrist_roll_follower_so101_v1.stl",
+        "SO101/assets/base_so101_v2.part",
+        "SO101/assets/wrist_roll_pitch_so101_v2.stl",
+        "SO101/assets/waveshare_mounting_plate_so101_v2.stl",
+        "SO101/assets/waveshare_mounting_plate_so101_v2.part",
+        "SO101/assets/moving_jaw_so101_v1.stl",
+        "SO101/assets/under_arm_so101_v1.part",
+        "SO101/so101_new_calib.urdf",
+        "SO101/joints_properties.xml",
+        "SO101/so101_new_calib.xml",
+        "SO101/so101_old_cbase_so101_v2alib.urdf",
+        "humanoid.xml",
+  ]
+  
+  // Create a map to store folders and files
+  const fileMap = new Map<string, FileItem>()
+  
+  // First, create all folders
+  const folderPaths = new Set<string>()
+  for (const filepath of files) {
+    const parts = filepath.split('/')
+    let currentPath = ''
+    for (let i = 0; i < parts.length - 1; i++) {
+      currentPath += (i > 0 ? '/' : '') + parts[i]
+      folderPaths.add(currentPath)
+    }
+  }
+  
+  // Create folder items
+  for (const folderPath of folderPaths) {
+    const parts = folderPath.split('/')
+    const folderName = parts[parts.length - 1]
+    
+    const folderItem: FileItem = {
+      name: folderName,
+      path: folderPath,
+      type: 'folder',
+      modified: new Date(),
+      children: [],
+      expanded: false
+    }
+    
+    fileMap.set(folderPath, folderItem)
+  }
+  
+  // Load each known file
+  for (const filepath of files) {
+    console.log(filepath)
+    try {
+      const response = await fetch(`/public/${filepath}`)
+      const substrs = filepath.split("/")
+      const fileName = substrs[substrs.length - 1]
+      if (response.ok) {
+        const content = await response.arrayBuffer()
+        const fileItem: FileItem = {
+          name: fileName,
+          path: filepath,
+          type: 'file',
+          size: content.byteLength,
+          modified: new Date(),
+          content: content
+        }
+        
+        // Add file to its parent folder
+        const parentPath = substrs.slice(0, -1).join('/')
+        if (parentPath && fileMap.has(parentPath)) {
+          fileMap.get(parentPath)!.children!.push(fileItem)
+        } else {
+          // Root level file
+          fileMap.set(filepath, fileItem)
+        }
+        
+        console.log(`Loaded: ${fileName} (${formatFileSize(content.byteLength)})`)
+      }
+    } catch (error) {
+      console.warn(`Failed to load ${filepath}:`, error)
+    }
+  }
+  
+  // Build the tree structure
+  const rootItems: FileItem[] = []
+  for (const [path, item] of fileMap) {
+    if (item.type === 'file') {
+      // Files without parent folders go to root
+      if (!path.includes('/')) {
+        rootItems.push(item)
+      }
+    } else {
+      // Folders without parent folders go to root
+      const parts = path.split('/')
+      if (parts.length === 1) {
+        rootItems.push(item)
+      } else {
+        // Add folder to its parent
+        const parentPath = parts.slice(0, -1).join('/')
+        if (fileMap.has(parentPath)) {
+          fileMap.get(parentPath)!.children!.push(item)
+        } else {
+          rootItems.push(item)
+        }
+      }
+    }
+  }
+  
+  fileTree.value = rootItems
+  console.log('Loaded default files:', rootItems.length, 'items')
+  emit('files-loaded')
+}
+
 const refreshFiles = async () => {
-  // Files are managed locally, no need to fetch from API
-  console.log('Files refreshed locally')
+  await loadDefaultFiles()
+  console.log('Files refreshed from public/SO101')
 }
 
 const createNewFile = async () => {
   const fileName = prompt('Enter file name:')
   if (!fileName) return
   
-  const filePath = `${currentPath.value}/${fileName}`
+  const filePath = fileName
   
   // Create empty binary content
   const emptyContent = new ArrayBuffer(0)
@@ -256,7 +392,7 @@ const createNewFolder = async () => {
   const folderName = prompt('Enter folder name:')
   if (!folderName) return
   
-  const folderPath = `${currentPath.value}/${folderName}`
+  const folderPath = folderName
   
   const newFolder: FileItem = {
     name: folderName,
@@ -348,9 +484,7 @@ const uploadSingleFile = async (file: File, isFolder: boolean): Promise<void> =>
   }
   
   // Create file item for local storage
-  const filePath = isFolder 
-    ? `${currentPath.value}/${file.webkitRelativePath || file.name}`
-    : `${currentPath.value}/${file.name}`
+  const filePath = isFolder ? (file.webkitRelativePath || file.name) : file.name
   
   const fileItem: FileItem = {
     name: file.name,
@@ -381,7 +515,7 @@ const addFileToTree = (fileItem: FileItem, relativePath?: string) => {
   
   // Handle folder structure
   const pathParts = relativePath.split('/')
-  const fileName = pathParts.pop() // Remove filename
+  pathParts.pop() // Remove filename
   
   if (pathParts.length === 0) {
     // File is in root of uploaded folder
@@ -391,17 +525,17 @@ const addFileToTree = (fileItem: FileItem, relativePath?: string) => {
   
   // Navigate/create folder structure
   let currentLevel = fileTree.value
-  let buildPath = currentPath.value
+  let builtPath = ''
   
   for (const folderName of pathParts) {
-    buildPath += `/${folderName}`
+    const nextPath = builtPath ? `${builtPath}/${folderName}` : folderName
     let folder = currentLevel.find(item => item.name === folderName && item.type === 'folder')
     
     if (!folder) {
       // Create folder if it doesn't exist
       folder = {
         name: folderName,
-        path: buildPath,
+        path: nextPath,
         type: 'folder',
         children: [],
         expanded: true
@@ -410,6 +544,7 @@ const addFileToTree = (fileItem: FileItem, relativePath?: string) => {
     }
     
     currentLevel = folder.children!
+    builtPath = nextPath
   }
   
   // Add file to the final folder
@@ -490,6 +625,11 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
+const handleSimulation = (item: FileItem) => {
+  console.log('Starting simulation for:', item.path)
+  emit('simulation', item)
+}
+
 const selectFile = async (item: FileItem) => {
   selectedFile.value = item
   console.log('Selected file:', item.path)
@@ -524,6 +664,9 @@ const executeAction = async (action: string) => {
   if (!item) return
 
   switch (action) {
+    case 'simulation':
+      handleSimulation(item)
+      break
     case 'copy':
       // Copy file path to clipboard
       try {
@@ -601,8 +744,13 @@ const hideContextMenu = () => {
   contextMenu.value.show = false
 }
 
+// 暴露文件树给父组件
+defineExpose({
+  getFileTree: () => fileTree.value
+})
+
 onMounted(() => {
-  refreshFiles()
+  loadDefaultFiles() // Load default files from public/SO101
   document.addEventListener('click', hideContextMenu)
 })
 
