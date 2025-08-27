@@ -3,72 +3,76 @@
 import load_mujoco, { type Model, type State, type Simulation } from "../mujoco_wasm/mujoco_wasm";
 import * as THREE from 'three';
 
-let global_mujoco = await load_mujoco();
+const global_mujoco = await load_mujoco();
 global_mujoco.FS.mkdir('/working');
 global_mujoco.FS.mount(global_mujoco.MEMFS, { root: '.' }, '/working');
-await write_public();
-async function write_public() {
-    let files = [
-        "public/SO101/scene.xml",
-        "public/SO101/README.md",
-        "public/SO101/so101_old_calib.xml",
-        "public/SO101/assets/motor_holder_so101_base_v1.part",
-        "public/SO101/assets/rotation_pitch_so101_v1.stl",
-        "public/SO101/assets/base_so101_v2.stl",
-        "public/SO101/assets/upper_arm_so101_v1.part",
-        "public/SO101/assets/upper_arm_so101_v1.stl",
-        "public/SO101/assets/motor_holder_so101_wrist_v1.stl",
-        "public/SO101/assets/moving_jaw_so101_v1.part",
-        "public/SO101/assets/sts3215_03a_no_horn_v1.part",
-        "public/SO101/assets/wrist_roll_pitch_so101_v2.part",
-        "public/SO101/assets/sts3215_03a_v1.part",
-        "public/SO101/assets/under_arm_so101_v1.stl",
-        "public/SO101/assets/sts3215_03a_v1.stl",
-        "public/SO101/assets/wrist_roll_follower_so101_v1.part",
-        "public/SO101/assets/sts3215_03a_no_horn_v1.stl",
-        "public/SO101/assets/motor_holder_so101_wrist_v1.part",
-        "public/SO101/assets/base_motor_holder_so101_v1.stl",
-        "public/SO101/assets/motor_holder_so101_base_v1.stl",
-        "public/SO101/assets/base_motor_holder_so101_v1.part",
-        "public/SO101/assets/rotation_pitch_so101_v1.part",
-        "public/SO101/assets/wrist_roll_follower_so101_v1.stl",
-        "public/SO101/assets/base_so101_v2.part",
-        "public/SO101/assets/wrist_roll_pitch_so101_v2.stl",
-        "public/SO101/assets/waveshare_mounting_plate_so101_v2.stl",
-        "public/SO101/assets/waveshare_mounting_plate_so101_v2.part",
-        "public/SO101/assets/moving_jaw_so101_v1.stl",
-        "public/SO101/assets/under_arm_so101_v1.part",
-        "public/SO101/so101_new_calib.urdf",
-        "public/SO101/joints_properties.xml",
-        "public/SO101/so101_new_calib.xml",
-        "public/SO101/so101_old_cbase_so101_v2alib.urdf",
-        "public/humanoid.xml",
-    ]
-    for (let file_path of files) {
-        let file = await fetch(file_path)
-        let buffer = await file.arrayBuffer()
-        let local_path = "/working/" + file_path.replace("public/", "./")
-        console.log("local_path=", local_path)
-        let path_dir = local_path.replace(new RegExp("/[^/]*$"), "");
-        try {
-            global_mujoco.FS.mkdir(path_dir)
-        } catch (e) {
-            // console.log("e=", e)
-        }
-        let stream = global_mujoco.FS.open(local_path, 'w+')
-        global_mujoco.FS.write(stream, new Uint8Array(buffer), 0, buffer.byteLength, 0);
+
+/**
+ * 将explorer中的文件同步到MuJoCo文件系统中
+ * @param fileItems - 来自explorer的文件项数组
+ */
+export function writeFilesToMuJoCoFS(fileItems: any[]) {
+    // 遍历所有文件项
+    for (const fileItem of fileItems) {
+        syncFileItem(fileItem, '/working');
     }
+
+    console.log('文件同步完成');
 }
 
-// Check if global_mujoco has mjGEOM constants and use them, otherwise use default values
-const mjGEOM_PLANE = global_mujoco.hasOwnProperty('mjGEOM_PLANE') ? global_mujoco.mjGEOM_PLANE : 0;
-const mjGEOM_HFIELD = global_mujoco.hasOwnProperty('mjGEOM_HFIELD') ? global_mujoco.mjGEOM_HFIELD : 1;
-const mjGEOM_SPHERE = global_mujoco.hasOwnProperty('mjGEOM_SPHERE') ? global_mujoco.mjGEOM_SPHERE : 2;
-const mjGEOM_CAPSULE = global_mujoco.hasOwnProperty('mjGEOM_CAPSULE') ? global_mujoco.mjGEOM_CAPSULE : 3;
-const mjGEOM_ELLIPSOID = global_mujoco.hasOwnProperty('mjGEOM_ELLIPSOID') ? global_mujoco.mjGEOM_ELLIPSOID : 4;
-const mjGEOM_CYLINDER = global_mujoco.hasOwnProperty('mjGEOM_CYLINDER') ? global_mujoco.mjGEOM_CYLINDER : 5;
-const mjGEOM_BOX = global_mujoco.hasOwnProperty('mjGEOM_BOX') ? global_mujoco.mjGEOM_BOX : 6;
-const mjGEOM_MESH = global_mujoco.hasOwnProperty('mjGEOM_MESH') ? global_mujoco.mjGEOM_MESH : 7;
+/**
+ * 递归同步单个文件项到MuJoCo文件系统
+ * @param fileItem - 文件项对象
+ * @param basePath - 基础路径
+ */
+function syncFileItem(fileItem: any, basePath: string) {
+    const fullPath = `${basePath}/${fileItem.name}`;
+
+    if (fileItem.type === 'folder') {
+        // 创建文件夹
+        try {
+            global_mujoco.FS.mkdir(fullPath);
+            console.log(`创建文件夹: ${fullPath}`);
+        } catch (e) {
+            // 文件夹可能已存在
+            console.log(`文件夹已存在或创建失败: ${fullPath}`, e);
+        }
+
+        // 递归处理子项
+        if (fileItem.children && fileItem.children.length > 0) {
+            for (const child of fileItem.children) {
+                syncFileItem(child, fullPath);
+            }
+        }
+    } else if (fileItem.type === 'file') {
+        // 创建文件
+        try {
+            // 确保父目录存在
+            const dirPath = fullPath.replace(new RegExp("/[^/]*$"), "");
+            try {
+                global_mujoco.FS.mkdir(dirPath);
+            } catch (e) {
+                // 目录可能已存在
+            }
+
+            // 写入文件内容
+            if (fileItem.content) {
+                const stream = global_mujoco.FS.open(fullPath, 'w+');
+                global_mujoco.FS.write(stream, new Uint8Array(fileItem.content), 0, fileItem.content.byteLength, 0);
+                global_mujoco.FS.close(stream);
+                console.log(`写入文件: ${fullPath}, 大小: ${fileItem.content.byteLength} 字节`);
+            } else {
+                // 创建空文件
+                const stream = global_mujoco.FS.open(fullPath, 'w+');
+                global_mujoco.FS.write(stream, new Uint8Array(0), 0, 0, 0);
+                global_mujoco.FS.close(stream);
+                console.log(`创建空文件: ${fullPath}`);
+            }
+        } catch (e) {
+            console.error(`写入文件失败: ${fullPath}`, e);
+        }
+    }
+}
 
 export class MuJoCoInstance {
     model!: Model;
@@ -76,22 +80,14 @@ export class MuJoCoInstance {
     simulation!: Simulation;
     timestep!: number; // 0.002 seconds
 
-    constructor() {
-        // 构造函数现在是同步的，需要调用init()来异步初始化
-    }
-
-    async init() {
-        console.log("MuJoCoInstance init");
-        this.model = new global_mujoco.Model("/working/SO101/scene.xml");
-        let opt = this.model.getOptions();
-        console.log("opt=", opt)
+    constructor(filepath: string) {
+        console.log("filepath=", filepath)
+        filepath = "/working/" + filepath;
+        this.model = new global_mujoco.Model(filepath);
+        const opt = this.model.getOptions();
         this.timestep = opt.timestep;
-        console.log("model init");
         this.state = new global_mujoco.State(this.model);
-        console.log("model init");
         this.simulation = new global_mujoco.Simulation(this.model, this.state);
-
-        console.log("model init");
     }
 
     /**
@@ -111,7 +107,7 @@ export class MuJoCoInstance {
         if (this.model.actuator_ctrllimited[actuatorIndex]) {
             const min = this.model.actuator_ctrlrange[actuatorIndex * 2];
             const max = this.model.actuator_ctrlrange[actuatorIndex * 2 + 1];
-            
+
             // 检查值是否在范围内
             if (value < min || value > max) {
                 console.warn(`Control value ${value} for actuator ${actuatorIndex} is out of range [${min}, ${max}]. Clamping value.`);
@@ -137,11 +133,11 @@ export class MuJoCoInstance {
      * 获取执行器（关节）的名称列表及其控制范围
      * @returns {Array<{name: string, min: number, max: number}>} - 包含所有执行器名称和控制范围的数组
      */
-    getActuatorNamesAndRanges(): Array<{name: string, min: number, max: number}> {
-        const actuators: Array<{name: string, min: number, max: number}> = [];
+    getActuatorNamesAndRanges(): Array<{ name: string, min: number, max: number }> {
+        const actuators: Array<{ name: string, min: number, max: number }> = [];
         const textDecoder = new TextDecoder("utf-8");
         const names_array = new Uint8Array(this.model.names);
-        
+
         for (let i = 0; i < this.model.nu; i++) {
             // Get actuator name
             const start_idx = this.model.name_actuatoradr[i];
@@ -151,7 +147,7 @@ export class MuJoCoInstance {
             }
             const name_buffer = names_array.subarray(start_idx, end_idx);
             const name = textDecoder.decode(name_buffer);
-            
+
             // Get actuator range
             let min = -3.14; // Default min
             let max = 3.14;  // Default max
@@ -159,10 +155,10 @@ export class MuJoCoInstance {
                 min = this.model.actuator_ctrlrange[i * 2];
                 max = this.model.actuator_ctrlrange[i * 2 + 1];
             }
-            
+
             actuators.push({ name, min, max });
         }
-        
+
         return actuators;
     }
 
@@ -179,22 +175,22 @@ export class MuJoCoInstance {
         });
 
         // 解码字符串名称
-        let textDecoder = new TextDecoder("utf-8");
-        let names_array = new Uint8Array(this.model.names);
-        let fullString = textDecoder.decode(this.model.names);
-        let nullChar = textDecoder.decode(new ArrayBuffer(1));
-        let names = fullString.split(nullChar);
+        const textDecoder = new TextDecoder("utf-8");
+        const names_array = new Uint8Array(this.model.names);
+        const fullString = textDecoder.decode(this.model.names);
+        const nullChar = textDecoder.decode(new ArrayBuffer(1));
+        const names = fullString.split(nullChar);
 
         // 创建根对象
-        let mujocoRoot = new THREE.Group();
+        const mujocoRoot = new THREE.Group();
         mujocoRoot.name = "MuJoCo Root";
 
         /** @type {Object.<number, THREE.Group>} */
-        let bodies = new Map<number, THREE.Group>();
+        const bodies = new Map<number, THREE.Group>();
         /** @type {Object.<number, THREE.BufferGeometry>} */
-        let meshes = new Map<number, THREE.BufferGeometry>();
+        const meshes = new Map<number, THREE.BufferGeometry>();
         /** @type {THREE.Light[]} */
-        let lights: THREE.Light[] = [];
+        const lights: THREE.Light[] = [];
 
         // 默认材质定义
         let material = new THREE.MeshPhysicalMaterial();
@@ -206,9 +202,9 @@ export class MuJoCoInstance {
             if (!(this.model.geom_group[g] < 3)) { continue; }
 
             // 获取几何体的body ID和类型
-            let b = this.model.geom_bodyid[g];
-            let type = this.model.geom_type[g];
-            let size = [
+            const b = this.model.geom_bodyid[g];
+            const type = this.model.geom_type[g];
+            const size = [
                 this.model.geom_size[(g * 3) + 0],
                 this.model.geom_size[(g * 3) + 1],
                 this.model.geom_size[(g * 3) + 2]
@@ -218,12 +214,12 @@ export class MuJoCoInstance {
             if (!(b in bodies)) {
                 bodies[b] = new THREE.Group();
 
-                let start_idx = this.model.name_bodyadr[b];
+                const start_idx = this.model.name_bodyadr[b];
                 let end_idx = start_idx;
                 while (end_idx < names_array.length && names_array[end_idx] !== 0) {
                     end_idx++;
                 }
-                let name_buffer = names_array.subarray(start_idx, end_idx);
+                const name_buffer = names_array.subarray(start_idx, end_idx);
                 bodies[b].name = textDecoder.decode(name_buffer);
 
                 bodies[b].bodyID = b;
@@ -248,37 +244,37 @@ export class MuJoCoInstance {
             } else if (type == global_mujoco.mjtGeom.mjGEOM_BOX.value) {
                 geometry = new THREE.BoxGeometry(size[0] * 2.0, size[2] * 2.0, size[1] * 2.0);
             } else if (type == global_mujoco.mjtGeom.mjGEOM_MESH.value) {
-                let meshID = this.model.geom_dataid[g];
+                const meshID = this.model.geom_dataid[g];
 
                 if (!(meshID in meshes)) {
                     geometry = new THREE.BufferGeometry();
 
-                    let vertex_buffer = this.model.mesh_vert.subarray(
+                    const vertex_buffer = this.model.mesh_vert.subarray(
                         this.model.mesh_vertadr[meshID] * 3,
                         (this.model.mesh_vertadr[meshID] + this.model.mesh_vertnum[meshID]) * 3);
 
                     // 坐标系转换
                     for (let v = 0; v < vertex_buffer.length; v += 3) {
-                        let temp = vertex_buffer[v + 1];
+                        const temp = vertex_buffer[v + 1];
                         vertex_buffer[v + 1] = vertex_buffer[v + 2];
                         vertex_buffer[v + 2] = -temp;
                     }
 
-                    let normal_buffer = this.model.mesh_normal.subarray(
+                    const normal_buffer = this.model.mesh_normal.subarray(
                         this.model.mesh_vertadr[meshID] * 3,
                         (this.model.mesh_vertadr[meshID] + this.model.mesh_vertnum[meshID]) * 3);
 
                     for (let v = 0; v < normal_buffer.length; v += 3) {
-                        let temp = normal_buffer[v + 1];
+                        const temp = normal_buffer[v + 1];
                         normal_buffer[v + 1] = normal_buffer[v + 2];
                         normal_buffer[v + 2] = -temp;
                     }
 
-                    let uv_buffer = this.model.mesh_texcoord.subarray(
+                    const uv_buffer = this.model.mesh_texcoord.subarray(
                         this.model.mesh_texcoordadr[meshID] * 2,
                         (this.model.mesh_texcoordadr[meshID] + this.model.mesh_vertnum[meshID]) * 2);
 
-                    let triangle_buffer = this.model.mesh_face.subarray(
+                    const triangle_buffer = this.model.mesh_face.subarray(
                         this.model.mesh_faceadr[meshID] * 3,
                         (this.model.mesh_faceadr[meshID] + this.model.mesh_facenum[meshID]) * 3);
 
@@ -303,7 +299,7 @@ export class MuJoCoInstance {
             ];
 
             if (this.model.geom_matid[g] != -1) {
-                let matId = this.model.geom_matid[g];
+                const matId = this.model.geom_matid[g];
                 color = [
                     this.model.mat_rgba[(matId * 4) + 0],
                     this.model.mat_rgba[(matId * 4) + 1],
@@ -322,7 +318,7 @@ export class MuJoCoInstance {
                 metalness: this.model.geom_matid[g] != -1 ? 0.1 : undefined
             });
 
-            let mesh = new THREE.Mesh(geometry, material);
+            const mesh = new THREE.Mesh(geometry, material);
             mesh.castShadow = g == 0 ? false : true;
             mesh.receiveShadow = type != 7;
             mesh.bodyID = b;
@@ -365,7 +361,7 @@ export class MuJoCoInstance {
 
         // 如果没有灯光，添加默认灯光
         if (this.model.nlight == 0) {
-            let light = new THREE.DirectionalLight();
+            const light = new THREE.DirectionalLight();
             mujocoRoot.add(light);
             lights.push(light);
         }
@@ -381,12 +377,12 @@ export class MuJoCoInstance {
                 bodies[b] = new THREE.Group();
 
                 // 尝试获取body名称
-                let start_idx = this.model.name_bodyadr[b];
+                const start_idx = this.model.name_bodyadr[b];
                 let end_idx = start_idx;
                 while (end_idx < names_array.length && names_array[end_idx] !== 0) {
                     end_idx++;
                 }
-                let name_buffer = names_array.subarray(start_idx, end_idx);
+                const name_buffer = names_array.subarray(start_idx, end_idx);
                 bodies[b].name = textDecoder.decode(name_buffer) || `body_${b}`;
                 bodies[b].bodyID = b;
                 bodies[b].has_custom_mesh = false;
@@ -421,7 +417,7 @@ export class MuJoCoInstance {
      * 更新Three.js对象的位置和旋转以匹配当前的MuJoCo状态
      * @param {Object} renderableData - 从getThreeJSRenderableBodies()返回的数据
      */
-    updateThreeJSBodies(renderableData: {bodies: Map<number, THREE.Group>;}) {
+    updateThreeJSBodies(renderableData: { bodies: Map<number, THREE.Group>; }) {
         const { bodies } = renderableData;
 
         // 更新每个body的位置和旋转
@@ -464,7 +460,7 @@ export class MuJoCoInstance {
         const x = buffer[(index * 4) + 1];
         const y = buffer[(index * 4) + 2];
         const z = buffer[(index * 4) + 3];
-        
+
         // Convert from MuJoCo (Z-up) to Three.js (Y-up) coordinate system
         // This is equivalent to a -90 degree rotation around the X axis
         // The quaternion for this rotation is [sqrt(2)/2, -sqrt(2)/2, 0, 0]

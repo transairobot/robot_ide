@@ -100,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, shallowRef } from 'vue'
+import { ref, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
@@ -114,6 +114,13 @@ import {
   Settings
 } from 'lucide-vue-next'
 import { MuJoCoInstance } from '@/mujoco_wasm/MujocoInstance';
+
+interface Props {
+  filePath?: string
+  isActive?: boolean
+}
+
+const props = defineProps<Props>()
 
 const rendererContainerRef = ref<HTMLDivElement | null>(null);
 const isModelLoaded = ref(false);
@@ -147,11 +154,36 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 let controls: OrbitControls | null = null;
 let animationRef: number | null = null;
 let mujocoRenderableData: ReturnType<MuJoCoInstance['getThreeJSRenderableBodies']> | null = null;
-let stats: Stats | null = null;
+const stats: Stats | null = null;
 
 // FPS calculation variables
 let lastTime = performance.now();
 let frameCount = 0;
+
+const startSimulation = () => {
+  if (isModelLoaded.value && !simulationInterval && mujocoInstanceRef.value && timestep.value > 0) {
+    simulationInterval = window.setInterval(() => {
+      if (mujocoInstanceRef.value) {
+        mujocoInstanceRef.value.simulation.step();
+      }
+    }, timestep.value * 1000);
+  }
+};
+
+const stopSimulation = () => {
+  if (simulationInterval) {
+    clearInterval(simulationInterval);
+    simulationInterval = null;
+  }
+};
+
+watch(() => props.isActive, (newIsActive) => {
+  if (newIsActive) {
+    startSimulation();
+  } else {
+    stopSimulation();
+  }
+});
 
 // Function to toggle controls panel collapse
 const toggleControlsPanel = () => {
@@ -234,6 +266,75 @@ const animate = () => {
   renderer.render(scene, camera);
 };
 
+// Watch for filePath changes
+watch(() => props.filePath, (newFilePath) => {
+  if (newFilePath) {
+    console.log('File path changed, reinitializing MuJoCo with:', newFilePath)
+    initializeMuJoCo(newFilePath)
+  }
+})
+
+// Extract MuJoCo initialization logic
+const initializeMuJoCo = async (modelPath: string) => {
+  try {
+    // Clean up existing instance
+    if (mujocoInstanceRef.value) {
+      // Clean up previous instance if needed
+      mujocoInstanceRef.value = null
+    }
+    
+    // Clear scene
+    if (mujocoRenderableData) {
+      scene.remove(mujocoRenderableData.mujocoRoot)
+      mujocoRenderableData = null
+    }
+    
+    // Stop simulation interval
+    stopSimulation();
+    
+    isModelLoaded.value = false
+    
+    // Convert file path to MuJoCo FS path format
+    let mujocoPath = modelPath
+    
+    console.log('Loading MuJoCo model from path:', mujocoPath)
+    
+    // Initialize new MuJoCoInstance
+    const instance = new MuJoCoInstance(mujocoPath);
+    mujocoInstanceRef.value = instance; // Expose to template
+    
+    // Get timestep
+    timestep.value = instance.getTimestep();
+    console.log('Timestep:', timestep.value);
+    
+    // Get actuator names and ranges
+    actuators.value = instance.getActuatorNamesAndRanges();
+    console.log('Actuators:', actuators.value);
+    for (let i = 0; i < actuators.value.length; i++) {
+      // Initialize with a default value, e.g., 0 or the middle of the range
+      const actuator = actuators.value[i];
+      actuatorValues.value[i] = (actuator.min + actuator.max) / 2;
+    }
+    
+    // Get the Three.js renderable objects
+    mujocoRenderableData = instance.getThreeJSRenderableBodies();
+    
+    // Add the root object to the scene
+    scene.add(mujocoRenderableData.mujocoRoot);
+    
+    isModelLoaded.value = true;
+    
+    // Start the simulation loop if active
+    if (props.isActive) {
+      startSimulation();
+    }
+    
+  } catch (error) {
+    console.error("Failed to load MuJoCo model:", error);
+    isModelLoaded.value = false;
+  }
+}
+
 onMounted(async () => {
   if (rendererContainerRef.value) {
     // Append the renderer's DOM element to the container
@@ -255,48 +356,12 @@ onMounted(async () => {
       controls.maxDistance = 10;
     }
     
-    try {
-      // Initialize MuJoCoInstance
-      const instance = new MuJoCoInstance();
-      await instance.init();
-      mujocoInstanceRef.value = instance; // Expose to template
-      
-      // Get timestep
-      timestep.value = instance.getTimestep();
-      console.log('Timestep:', timestep.value);
-      
-      // Get actuator names and ranges
-      actuators.value = instance.getActuatorNamesAndRanges();
-      console.log('Actuators:', actuators.value);
-      for (let i = 0; i < actuators.value.length; i++) {
-        // Initialize with a default value, e.g., 0 or the middle of the range
-        const actuator = actuators.value[i];
-        actuatorValues.value[i] = (actuator.min + actuator.max) / 2;
-      }
-      
-      // Get the Three.js renderable objects
-      mujocoRenderableData = instance.getThreeJSRenderableBodies();
-      
-      // Add the root object to the scene
-      scene.add(mujocoRenderableData.mujocoRoot);
-      
-      isModelLoaded.value = true;
-      
-      // Start the simulation loop with a fixed timestep
-      if (timestep.value > 0) {
-        simulationInterval = window.setInterval(() => {
-          if (mujocoInstanceRef.value) {
-            mujocoInstanceRef.value.simulation.step();
-          }
-        }, timestep.value * 1000); // Convert timestep to milliseconds
-      }
-      
-      // Start the animation loop
-      animate();
-    } catch (error) {
-      console.error("Failed to load MuJoCo model:", error);
-      isModelLoaded.value = false;
-    }
+    // Initialize MuJoCo with provided file path or default
+    const modelPath = props.filePath || "/SO101/so101_new_calib.xml"
+    await initializeMuJoCo(modelPath)
+    
+    // Start the animation loop
+    animate();
   }
 });
 
@@ -308,9 +373,7 @@ onUnmounted(() => {
     cancelAnimationFrame(animationRef);
   }
   
-  if (simulationInterval) {
-    clearInterval(simulationInterval);
-  }
+  stopSimulation();
   
   if (controls) {
     controls.dispose();
