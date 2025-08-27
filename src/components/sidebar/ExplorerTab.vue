@@ -1,63 +1,63 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- Tab Header -->
-    <div class="px-3 py-2 border-b border-border bg-muted/50">
-      <h3 class="text-sm font-medium text-foreground">Explorer</h3>
+    <div class="px-3 py-3 border-b border-border bg-muted/50">
+      <h3 class="text-lg font-medium text-foreground">Explorer</h3>
     </div>
     
     <!-- Toolbar -->
-    <div class="p-2 border-b border-border flex items-center gap-1">
+    <div class="p-3 border-b border-border flex items-center gap-2">
       <Button
         size="sm"
         variant="ghost"
-        class="h-6 w-6 p-0"
+        class="h-8 w-8 p-0"
         @click="refreshFiles"
         title="Refresh"
       >
-        <RefreshCw class="w-3 h-3" />
+        <RefreshCw class="w-5 h-5" />
       </Button>
       <Button
         size="sm"
         variant="ghost"
-        class="h-6 w-6 p-0"
+        class="h-8 w-8 p-0"
         @click="createNewFile"
         title="New File"
       >
-        <FilePlus class="w-3 h-3" />
+        <FilePlus class="w-5 h-5" />
       </Button>
       <Button
         size="sm"
         variant="ghost"
-        class="h-6 w-6 p-0"
+        class="h-8 w-8 p-0"
         @click="createNewFolder"
         title="New Folder"
       >
-        <FolderPlus class="w-3 h-3" />
+        <FolderPlus class="w-5 h-5" />
       </Button>
       <Button
         size="sm"
         variant="ghost"
-        class="h-6 w-6 p-0"
+        class="h-8 w-8 p-0"
         @click="uploadFiles"
         title="Upload Files"
       >
-        <Upload class="w-3 h-3" />
+        <Upload class="w-5 h-5" />
       </Button>
       <Button
         size="sm"
         variant="ghost"
-        class="h-6 w-6 p-0"
+        class="h-8 w-8 p-0"
         @click="uploadFolder"
         title="Upload Folder"
       >
-        <FolderUp class="w-3 h-3" />
+        <FolderUp class="w-5 h-5" />
       </Button>
     </div>
 
     <!-- File Tree -->
     <ScrollArea class="flex-1">
       <div class="p-2">
-        <div class="text-xs text-muted-foreground mb-2 px-1">{{ currentPath }}</div>
+        <div class="text-base text-muted-foreground mb-3 px-1">{{ currentPath }}</div>
         <FileTreeNode
           v-for="item in fileTree"
           :key="item.path"

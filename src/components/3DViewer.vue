@@ -184,15 +184,31 @@ const initThreeJS = () => {
     containerRef.value.appendChild(renderer.domElement)
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.6)
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.4) // 稍微降低环境光强度
     scene.add(ambientLight)
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
-    directionalLight.position.set(10, 10, 5)
-    directionalLight.castShadow = true
-    directionalLight.shadow.mapSize.width = 2048
-    directionalLight.shadow.mapSize.height = 2048
-    scene.add(directionalLight)
+    // 主光源 - 右上前方
+    const directionalLight1 = new THREE.DirectionalLight(0xffffff, 0.8)
+    directionalLight1.position.set(10, 10, 5)
+    directionalLight1.castShadow = true
+    directionalLight1.shadow.mapSize.width = 2048
+    directionalLight1.shadow.mapSize.height = 2048
+    scene.add(directionalLight1)
+
+    // 补光源 - 左上后方
+    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.8)
+    directionalLight2.position.set(-8, 8, -3)
+    scene.add(directionalLight2)
+
+    // 侧光源 - 右侧
+    const directionalLight3 = new THREE.DirectionalLight(0xffffff, 0.8)
+    directionalLight3.position.set(5, 0, 8)
+    scene.add(directionalLight3)
+
+    // 底部补光 - 从下方照亮，减少阴影过重
+    const directionalLight4 = new THREE.DirectionalLight(0xffffff, 0.8)
+    directionalLight4.position.set(0, -5, 0)
+    scene.add(directionalLight4)
 
     // Grid
     grid = new THREE.GridHelper(10, 10, 0x444444, 0x444444)

@@ -2,34 +2,34 @@
   <div>
     <div
       :class="[
-        'flex items-center gap-1 px-1 py-0.5 text-xs rounded cursor-pointer hover:bg-accent/50',
+        'flex items-center gap-3 px-2 py-2 text-base rounded cursor-pointer hover:bg-accent/50',
         { 'bg-accent text-accent-foreground': isSelected }
       ]"
-      :style="{ paddingLeft: `${level * 12 + 4}px` }"
+      :style="{ paddingLeft: `${level * 16 + 4}px` }"
       @click="handleClick"
       @contextmenu="handleContextMenu"
     >
       <!-- Expand/Collapse Icon -->
-      <div class="w-3 h-3 flex items-center justify-center">
+      <div class="w-5 h-5 flex items-center justify-center">
         <ChevronRight
           v-if="item.type === 'folder'"
           :class="[
-            'w-3 h-3 transition-transform text-muted-foreground',
+            'w-5 h-5 transition-transform text-muted-foreground',
             { 'rotate-90': item.expanded }
           ]"
         />
       </div>
 
       <!-- File/Folder Icon -->
-      <div class="w-4 h-4 flex items-center justify-center">
-        <component :is="getFileIcon(item)" class="w-3 h-3" />
+      <div class="w-6 h-6 flex items-center justify-center">
+        <component :is="getFileIcon(item)" class="w-5 h-5" />
       </div>
 
       <!-- File/Folder Name -->
-      <span class="flex-1 truncate">{{ item.name }}</span>
+      <span class="flex-1 truncate font-medium">{{ item.name }}</span>
 
       <!-- File Size (for files only) -->
-      <span v-if="item.type === 'file' && item.size" class="text-xs text-muted-foreground">
+      <span v-if="item.type === 'file' && item.size" class="text-sm text-muted-foreground">
         {{ formatFileSize(item.size) }}
       </span>
     </div>
