@@ -58,7 +58,7 @@
     <ScrollArea class="flex-1">
       <div class="p-2">
         <FileTreeNode
-          v-for="item in fileTree"
+          v-for="item in fileTree.getTree()"
           :key="item.path"
           :item="item"
           :level="0"
@@ -159,6 +159,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import FileTreeNode from './FileTreeNode.vue'
+import { FileTree, type FileItem } from './FileTree'
 import { 
   RefreshCw, 
   FilePlus, 
@@ -180,18 +181,7 @@ const emit = defineEmits<{
   'files-loaded': []
 }>()
 
-interface FileItem {
-  name: string
-  path: string
-  type: 'file' | 'folder'
-  size?: number
-  modified?: Date
-  content?: ArrayBuffer // Binary content for all files
-  children?: FileItem[]
-  expanded?: boolean
-}
-
-const fileTree = ref<FileItem[]>([])
+const fileTree = ref<FileTree>(new FileTree())
 const selectedFile = ref<FileItem | null>(null)
 
 // File input refs
@@ -266,36 +256,8 @@ const loadDefaultFiles = async () => {
         "humanoid.xml",
   ]
   
-  // Create a map to store folders and files
-  const fileMap = new Map<string, FileItem>()
-  
-  // First, create all folders
-  const folderPaths = new Set<string>()
-  for (const filepath of files) {
-    const parts = filepath.split('/')
-    let currentPath = ''
-    for (let i = 0; i < parts.length - 1; i++) {
-      currentPath += (i > 0 ? '/' : '') + parts[i]
-      folderPaths.add(currentPath)
-    }
-  }
-  
-  // Create folder items
-  for (const folderPath of folderPaths) {
-    const parts = folderPath.split('/')
-    const folderName = parts[parts.length - 1]
-    
-    const folderItem: FileItem = {
-      name: folderName,
-      path: folderPath,
-      type: 'folder',
-      modified: new Date(),
-      children: [],
-      expanded: false
-    }
-    
-    fileMap.set(folderPath, folderItem)
-  }
+  // Clear existing tree
+  fileTree.value = new FileTree()
   
   // Load each known file
   for (const filepath of files) {
@@ -315,14 +277,8 @@ const loadDefaultFiles = async () => {
           content: content
         }
         
-        // Add file to its parent folder
-        const parentPath = substrs.slice(0, -1).join('/')
-        if (parentPath && fileMap.has(parentPath)) {
-          fileMap.get(parentPath)!.children!.push(fileItem)
-        } else {
-          // Root level file
-          fileMap.set(filepath, fileItem)
-        }
+        // Add file to tree
+        fileTree.value.addFileToPath(fileItem, filepath)
         
         console.log(`Loaded: ${fileName} (${formatFileSize(content.byteLength)})`)
       }
@@ -331,33 +287,7 @@ const loadDefaultFiles = async () => {
     }
   }
   
-  // Build the tree structure
-  const rootItems: FileItem[] = []
-  for (const [path, item] of fileMap) {
-    if (item.type === 'file') {
-      // Files without parent folders go to root
-      if (!path.includes('/')) {
-        rootItems.push(item)
-      }
-    } else {
-      // Folders without parent folders go to root
-      const parts = path.split('/')
-      if (parts.length === 1) {
-        rootItems.push(item)
-      } else {
-        // Add folder to its parent
-        const parentPath = parts.slice(0, -1).join('/')
-        if (fileMap.has(parentPath)) {
-          fileMap.get(parentPath)!.children!.push(item)
-        } else {
-          rootItems.push(item)
-        }
-      }
-    }
-  }
-  
-  fileTree.value = rootItems
-  console.log('Loaded default files:', rootItems.length, 'items')
+  console.log('Loaded default files')
   emit('files-loaded')
 }
 
@@ -384,7 +314,7 @@ const createNewFile = async () => {
     content: emptyContent
   }
   
-  fileTree.value.push(newFile)
+  fileTree.value.addItem(newFile)
   console.log('Created new file:', filePath)
 }
 
@@ -403,7 +333,7 @@ const createNewFolder = async () => {
     expanded: false
   }
   
-  fileTree.value.push(newFolder)
+  fileTree.value.addItem(newFolder)
   console.log('Created new folder:', folderPath)
 }
 
@@ -507,48 +437,7 @@ const uploadSingleFile = async (file: File, isFolder: boolean): Promise<void> =>
 
 // Helper function to add file to the local file tree
 const addFileToTree = (fileItem: FileItem, relativePath?: string) => {
-  if (!relativePath) {
-    // Simple file upload to root
-    fileTree.value.push(fileItem)
-    return
-  }
-  
-  // Handle folder structure
-  const pathParts = relativePath.split('/')
-  pathParts.pop() // Remove filename
-  
-  if (pathParts.length === 0) {
-    // File is in root of uploaded folder
-    fileTree.value.push(fileItem)
-    return
-  }
-  
-  // Navigate/create folder structure
-  let currentLevel = fileTree.value
-  let builtPath = ''
-  
-  for (const folderName of pathParts) {
-    const nextPath = builtPath ? `${builtPath}/${folderName}` : folderName
-    let folder = currentLevel.find(item => item.name === folderName && item.type === 'folder')
-    
-    if (!folder) {
-      // Create folder if it doesn't exist
-      folder = {
-        name: folderName,
-        path: nextPath,
-        type: 'folder',
-        children: [],
-        expanded: true
-      }
-      currentLevel.push(folder)
-    }
-    
-    currentLevel = folder.children!
-    builtPath = nextPath
-  }
-  
-  // Add file to the final folder
-  currentLevel.push(fileItem)
+  fileTree.value.addFileToPath(fileItem, relativePath)
 }
 
 // Helper function to read file content as binary
@@ -566,18 +455,6 @@ const readFileAsBinary = (file: File): Promise<ArrayBuffer> => {
     reader.onerror = () => reject(reader.error)
     reader.readAsArrayBuffer(file)
   })
-}
-
-// Helper function to convert ArrayBuffer to text (for text files)
-const arrayBufferToText = (buffer: ArrayBuffer): string => {
-  const decoder = new TextDecoder('utf-8')
-  return decoder.decode(buffer)
-}
-
-// Helper function to convert text to ArrayBuffer
-const textToArrayBuffer = (text: string): ArrayBuffer => {
-  const encoder = new TextEncoder()
-  return encoder.encode(text).buffer
 }
 
 const updateUploadStats = () => {
@@ -634,6 +511,9 @@ const selectFile = async (item: FileItem) => {
   selectedFile.value = item
   console.log('Selected file:', item.path)
   
+  // Select file in FileTree
+  fileTree.value.selectFile(item.path)
+  
   // Emit file selection event to parent
   emit('file-selected', item)
   
@@ -644,9 +524,7 @@ const selectFile = async (item: FileItem) => {
 }
 
 const toggleFolder = (item: FileItem) => {
-  if (item.type === 'folder') {
-    item.expanded = !item.expanded
-  }
+  fileTree.value.toggleFolder(item.path)
 }
 
 const showContextMenu = (event: MouseEvent, item: FileItem) => {
@@ -680,10 +558,9 @@ const executeAction = async (action: string) => {
     case 'rename':
       const newName = prompt('Enter new name:', item.name)
       if (newName && newName !== item.name) {
-        const newPath = item.path.replace(item.name, newName)
-        item.name = newName
-        item.path = newPath
-        console.log('Renamed:', item.path, 'to', newPath)
+        const oldPath = item.path
+        fileTree.value.renameItem(oldPath, newName)
+        console.log('Renamed:', oldPath, 'to', newName)
       }
       break
       
@@ -718,26 +595,7 @@ const executeAction = async (action: string) => {
 
 // Helper function to remove file from tree
 const removeFileFromTree = (itemToRemove: FileItem) => {
-  const removeFromArray = (items: FileItem[]): boolean => {
-    const index = items.findIndex(item => item.path === itemToRemove.path)
-    if (index !== -1) {
-      items.splice(index, 1)
-      return true
-    }
-    
-    // Search in children
-    for (const item of items) {
-      if (item.type === 'folder' && item.children) {
-        if (removeFromArray(item.children)) {
-          return true
-        }
-      }
-    }
-    
-    return false
-  }
-  
-  removeFromArray(fileTree.value)
+  fileTree.value.removeItem(itemToRemove.path)
 }
 
 const hideContextMenu = () => {
@@ -746,7 +604,7 @@ const hideContextMenu = () => {
 
 // 暴露文件树给父组件
 defineExpose({
-  getFileTree: () => fileTree.value
+  getFileTree: () => fileTree.value.getTree()
 })
 
 onMounted(() => {

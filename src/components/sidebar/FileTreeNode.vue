@@ -2,36 +2,33 @@
   <div>
     <div
       :class="[
-        'group flex items-center gap-3 px-2 py-2 text-base rounded cursor-pointer hover:bg-accent/50',
+        'group flex items-center gap-2 px-2 py-2 text-base rounded cursor-pointer hover:bg-accent/50',
         { 'bg-accent text-accent-foreground': isSelected }
       ]"
-      :style="{ paddingLeft: `${level * 16 + 4}px` }"
+      :style="{ paddingLeft: `${(level) * 16 + 4}px` }"
       @click="handleClick"
       @contextmenu="handleContextMenu"
     >
-      <!-- Expand/Collapse Icon -->
-      <div class="w-5 h-5 flex items-center justify-center">
-        <ChevronRight
-          v-if="item.type === 'folder'"
-          :class="[
-            'w-5 h-5 transition-transform text-muted-foreground',
-            { 'rotate-90': item.expanded }
-          ]"
-        />
+      <!-- Icon Container (includes Expand/Collapse Icon and File/Folder Icon) -->
+      <div class="flex items-center gap-2 flex-1 min-w-0">
+        <!-- Expand/Collapse Icon -->
+        <div v-if="item.type === 'folder'" class="w-5 h-5 flex items-center justify-center flex-shrink-0">
+          <ChevronRight
+            :class="[
+              'w-5 h-5 transition-transform text-muted-foreground',
+              { 'rotate-90': item.expanded }
+            ]"
+          />
+        </div>
+
+        <!-- File Icon-->
+        <div v-if="item.type === 'file'" class="w-6 h-6 flex items-center justify-center flex-shrink-0">
+          <component :is="getFileIcon(item)" class="w-5 h-5" />
+        </div>
+        
+        <!-- File/Folder Name -->
+        <span class="truncate font-medium">{{ item.name }}</span>
       </div>
-
-      <!-- File/Folder Icon -->
-      <div class="w-6 h-6 flex items-center justify-center">
-        <component :is="getFileIcon(item)" class="w-5 h-5" />
-      </div>
-
-      <!-- File/Folder Name -->
-      <span class="flex-1 truncate font-medium">{{ item.name }}</span>
-
-      <!-- File Size (for files only) -->
-      <span v-if="item.type === 'file' && item.size" class="text-sm text-muted-foreground">
-        {{ formatFileSize(item.size) }}
-      </span>
 
       <!-- Three Dots Menu -->
       <button
@@ -70,7 +67,9 @@ import {
   FileVideo,
   FileArchive,
   Settings,
-  MoreHorizontal
+  MoreHorizontal,
+  CodeXml,
+  FileJson
 } from 'lucide-vue-next'
 
 interface FileItem {
@@ -127,8 +126,11 @@ const getFileIcon = (item: FileItem) => {
       return FileCode
     case 'txt':
     case 'md':
+      return FileText
     case 'json':
+      return FileJson
     case 'xml':
+      return CodeXml
     case 'yaml':
     case 'yml':
       return FileText
