@@ -195,6 +195,7 @@ import { writeFilesToMuJoCoFS } from '@/mujoco_wasm/MujocoInstance'
 const sidebarContentCollapsed = ref(false)
 const consoleHeight = ref(200)
 const showConsole = ref(true)
+const sidebarExpandedWidth = ref<number | null>(null) // Track the expanded width
 
 // Editor tabs management
 interface EditorTab {
@@ -504,7 +505,25 @@ const is3DFile = (filename: string): boolean => {
 
 // Handle sidebar content collapse state
 const handleSidebarContentCollapse = (collapsed: boolean) => {
+  const wasCollapsed = sidebarContentCollapsed.value
   sidebarContentCollapsed.value = collapsed
+  
+  if (sidebarContainerRef.value) {
+    if (collapsed) {
+      // When collapsing, save current width and remove inline style
+      const currentWidth = sidebarContainerRef.value.offsetWidth
+      if (currentWidth > 0 && !wasCollapsed) {
+        sidebarExpandedWidth.value = currentWidth
+      }
+      sidebarContainerRef.value.style.width = ''
+    } else if (sidebarExpandedWidth.value) {
+      // When expanding, restore the tracked width
+      sidebarContainerRef.value.style.width = sidebarExpandedWidth.value + 'px'
+    } else {
+      // If no tracked width, remove inline style to use CSS classes
+      sidebarContainerRef.value.style.width = ''
+    }
+  }
   
   // Resize all canvas instances when sidebar content is collapsed/expanded
   nextTick(() => {
@@ -539,6 +558,17 @@ watch(showConsole, () => {
   })
 })
 
+// Watch for sidebar collapse changes to track width
+watch(sidebarContentCollapsed, (collapsed) => {
+  if (!collapsed && sidebarContainerRef.value) {
+    // When expanding, save the current width
+    const currentWidth = sidebarContainerRef.value.offsetWidth
+    if (currentWidth > 0) {
+      sidebarExpandedWidth.value = currentWidth
+    }
+  }
+})
+
 // Close tab menu when clicking outside
 const hideTabMenu = () => {
   showTabMenu.value = false
@@ -561,7 +591,13 @@ const startSidebarResize = (e: MouseEvent) => {
   const doDrag = (e: MouseEvent) => {
     if (!sidebarContainerRef.value) return
     const newWidth = startWidth + (e.clientX - startX)
-    sidebarContainerRef.value.style.width = Math.max(240, Math.min(1000, newWidth)) + 'px'
+    const clampedWidth = Math.max(240, Math.min(1000, newWidth))
+    sidebarContainerRef.value.style.width = clampedWidth + 'px'
+    
+    // Update the tracked expanded width
+    if (!sidebarContentCollapsed.value) {
+      sidebarExpandedWidth.value = clampedWidth
+    }
     
     // Resize all canvas instances when sidebar is resized
     canvasRefs.value.forEach(canvasRef => {
@@ -578,6 +614,14 @@ const startSidebarResize = (e: MouseEvent) => {
   }
   
   const stopDrag = () => {
+    // Save the final width when dragging stops
+    if (sidebarContainerRef.value && !sidebarContentCollapsed.value) {
+      const finalWidth = sidebarContainerRef.value.offsetWidth
+      if (finalWidth > 0) {
+        sidebarExpandedWidth.value = finalWidth
+      }
+    }
+    
     document.removeEventListener('mousemove', doDrag)
     document.removeEventListener('mouseup', stopDrag)
   }
@@ -620,7 +664,22 @@ const startConsoleResize = (e: MouseEvent) => {
 }
 
 onMounted(() => {
-  // Any initialization logic
+  // Initialize the sidebar expanded width
+  const initializeSidebarWidth = () => {
+    if (sidebarContainerRef.value && !sidebarContentCollapsed.value) {
+      // Set initial width if not collapsed
+      const currentWidth = sidebarContainerRef.value.offsetWidth
+      if (currentWidth > 0) {
+        sidebarExpandedWidth.value = currentWidth
+      }
+    }
+  }
+  
+  // Initialize on mount
+  initializeSidebarWidth()
+  
+  // Also initialize after next tick to ensure DOM is fully rendered
+  nextTick(initializeSidebarWidth)
 })
 
 onUnmounted(() => {

@@ -172,7 +172,8 @@ const initThreeJS = () => {
       0.1,
       1000
     )
-    camera.position.set(5, 5, 5)
+    // 初始相机位置设为(5, 10, 5)，这将在加载模型后被更新
+    camera.position.set(5, 10, 5)
     camera.lookAt(0, 0, 0)
 
     // Renderer
@@ -221,7 +222,7 @@ const initThreeJS = () => {
     controls.enableDamping = true // 启用阻尼效果
     controls.dampingFactor = 0.05 // 阻尼系数
     controls.screenSpacePanning = false // 禁用屏幕空间平移
-    controls.minDistance = 1 // 最小缩放距离
+    controls.minDistance = 0.1 // 最小缩放距离
     controls.maxDistance = 100 // 最大缩放距离
     controls.maxPolarAngle = Math.PI // 允许完全垂直旋转
     
@@ -257,6 +258,22 @@ const loadGLTFFromArrayBuffer = async (data: ArrayBuffer) => {
 
   model.position.sub(center); // 居中
   model.scale.set(scale, scale, scale);
+  
+  // Set loadedModel reference
+  loadedModel = model;
+  
+  // Set camera position to twice the model dimensions in all axes
+  if (camera) {
+    const modelSize = size.clone().multiply(model.scale);
+    camera.position.set(modelSize.x * 2, modelSize.y * 2, modelSize.z * 2);
+    camera.lookAt(0, 0, 0);
+    
+    // Update controls target to center of model
+    if (controls) {
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+  }
 
   scene.add(model);
 }
@@ -297,6 +314,19 @@ const centerAndScaleModel = (model: THREE.Object3D) => {
   if (maxDimension > 4) {
     const scale = 4 / maxDimension
     model.scale.setScalar(scale)
+  }
+  
+  // Set camera position to twice the model dimensions in all axes
+  if (camera) {
+    const modelSize = size.clone().multiply(model.scale)
+    camera.position.set(modelSize.x * 2, modelSize.y * 2, modelSize.z * 2)
+    camera.lookAt(0, 0, 0)
+    
+    // Update controls target to center of model
+    if (controls) {
+      controls.target.set(0, 0, 0)
+      controls.update()
+    }
   }
   
   console.log('Model centered and scaled:', { center, size, maxDimension })
@@ -412,8 +442,17 @@ const stopRenderLoop = () => {
 const resetView = () => {
   if (!camera || !controls) return
   
-  // 重置相机位置
-  camera.position.set(5, 5, 5)
+  // 获取当前模型的尺寸
+  let modelSize = new THREE.Vector3(5, 5, 5); // 默认值
+  
+  if (loadedModel) {
+    const box = new THREE.Box3().setFromObject(loadedModel)
+    const size = box.getSize(new THREE.Vector3())
+    modelSize = size.clone().multiply(loadedModel.scale)
+  }
+  
+  // 设置相机位置为模型尺寸的两倍
+  camera.position.set(modelSize.x * 2, modelSize.y * 2, modelSize.z * 2)
   camera.lookAt(0, 0, 0)
   
   // 重置控制器

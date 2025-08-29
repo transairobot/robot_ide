@@ -18,33 +18,43 @@
     </div>
 
     <!-- Tab Content -->
-    <div v-if="!isCollapsed" class="flex-1 overflow-hidden">
+    <div v-show="!isCollapsed" class="flex-1 overflow-hidden">
       <!-- Explorer Tab -->
-      <ExplorerTab 
-        v-if="activeTab === 'explorer'" 
-        @file-selected="emit('file-selected', $event)"
-        @simulation="emit('simulation', $event)"
-        @files-loaded="emit('files-loaded')"
-        ref="explorerTabRef"
-      />
+      <keep-alive>
+        <ExplorerTab 
+          v-show="activeTab === 'explorer'" 
+          @file-selected="emit('file-selected', $event)"
+          @simulation="emit('simulation', $event)"
+          @files-loaded="emit('files-loaded')"
+          ref="explorerTabRef"
+        />
+      </keep-alive>
       
       <!-- Robot Apps Tab -->
-      <AppsTab v-if="activeTab === 'apps'" />
+      <keep-alive>
+        <AppsTab v-show="activeTab === 'apps'" />
+      </keep-alive>
       
       <!-- Scenes Tab -->
-      <ScenesTab v-if="activeTab === 'scenes'" />
+      <keep-alive>
+        <ScenesTab v-show="activeTab === 'scenes'" />
+      </keep-alive>
       
       <!-- Assets Tab -->
-      <AssetsTab v-if="activeTab === 'assets'" />
+      <keep-alive>
+        <AssetsTab v-show="activeTab === 'assets'" />
+      </keep-alive>
       
       <!-- LLM Chat Tab -->
-      <ChatTab v-if="activeTab === 'messages'" />
+      <keep-alive>
+        <ChatTab v-show="activeTab === 'messages'" />
+      </keep-alive>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { 
   Package, 
   Layers, 
@@ -88,6 +98,11 @@ const handleTabClick = (tabId: string) => {
     activeTab.value = tabId
     isCollapsed.value = false
   }
+  
+  // Emit content-collapsed immediately to ensure parent updates
+  nextTick(() => {
+    emit('content-collapsed', isCollapsed.value)
+  })
 }
 
 // Watch for collapse state changes and emit to parent
