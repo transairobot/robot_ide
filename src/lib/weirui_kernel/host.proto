@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+// Unified result wrapper for all host function responses
+message HostResult {
+    optional int32 error_code = 1;      // 0 = success, non-zero = error
+    optional string error_message = 2;  // Human-readable error description
+    optional bytes data = 3;            // Serialized response data (specific message type)
+}
+
+message RunTargetActionReq {
+    repeated uint32 servo_id_vec = 1;
+    repeated float target_rad_vec = 2;
+}
+
+message RunTargetActionResp {
+    repeated uint32 servo_id_vec = 1;
+    repeated float target_rad_vec = 2;
+}
