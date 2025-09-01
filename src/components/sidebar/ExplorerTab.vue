@@ -263,7 +263,7 @@ const loadDefaultFiles = async () => {
   for (const filepath of files) {
     console.log(filepath)
     try {
-      const response = await fetch(`/public/${filepath}`)
+      const response = await fetch(`/${filepath}`)
       const substrs = filepath.split("/")
       const fileName = substrs[substrs.length - 1]
       if (response.ok) {
