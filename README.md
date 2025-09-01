@@ -62,3 +62,19 @@ npm run test:e2e -- --debug
 ```sh
 npm run lint
 ```
+
+### 部署到服务器
+
+```sh
+npm run deploy
+```
+
+部署配置文件: `deploy.config.json`
+- `host`: 目标服务器 IP 地址
+- `username`: SSH 用户名
+- `remotePath`: 远程服务器路径
+- `distPath`: 本地构建目录路径
+
+确保你已经配置了 SSH 密钥认证，以便无需密码即可连接到服务器。
+
+更多部署信息请查看 [DEPLOYMENT.md](DEPLOYMENT.md) 文件。
