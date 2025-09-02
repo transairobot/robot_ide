@@ -1,5 +1,191 @@
 <template>
   <div class="h-full flex flex-col">
+    <!-- Simulation Control Area -->
+    <div class="px-3 py-2 border-b border-border bg-muted/50">
+      <div class="flex items-center gap-2 mb-2">
+        <Button
+          size="sm"
+          variant="outline"
+          class="h-7 px-2 text-xs"
+          @click="startSimulation"
+          :disabled="simulationRunning || !robotFile"
+        >
+          <Play class="w-3 h-3 mr-1" />
+          Simulate
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          class="h-7 px-2 text-xs"
+          @click="stopSimulation"
+          :disabled="!simulationRunning"
+        >
+          <Square class="w-3 h-3 mr-1" />
+          Stop
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          class="h-7 px-2 text-xs"
+          @click="resetSimulation"
+          :disabled="!simulationRunning"
+        >
+          <RefreshCw class="w-3 h-3 mr-1" />
+          Reset
+        </Button>
+      </div>
+      
+      <!-- Robot Display -->
+      <div class="mt-2">
+        <div class="text-xs text-muted-foreground mb-1 flex justify-between items-center">
+          <span>Robot:</span>
+          <div class="flex gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              class="h-5 w-5 p-0"
+              @click="showRobotSelector"
+              title="Select Robot"
+            >
+              <Plus class="w-3 h-3" />
+            </Button>
+            <Button
+              v-if="robotFile"
+              size="sm"
+              variant="ghost"
+              class="h-5 w-5 p-0"
+              @click="removeRobot"
+              title="Remove Robot"
+            >
+              <X class="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+        <div 
+          class="text-xs p-2 bg-background border border-border rounded flex items-center gap-2 min-h-8 cursor-pointer"
+          @click="showRobotSelector"
+        >
+          <Bot class="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <span class="truncate" v-if="robotFile">{{ robotFile.name }}</span>
+          <span class="text-muted-foreground italic" v-else>Please add robot</span>
+        </div>
+      </div>
+      
+      <!-- Robot App Display -->
+      <div class="mt-2">
+        <div class="text-xs text-muted-foreground mb-1 flex justify-between items-center">
+          <span>Robot App:</span>
+          <div class="flex gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              class="h-5 w-5 p-0"
+              @click="showRobotAppSelector"
+              title="Select Robot App"
+            >
+              <Plus class="w-3 h-3" />
+            </Button>
+            <Button
+              v-if="robotAppFile"
+              size="sm"
+              variant="ghost"
+              class="h-5 w-5 p-0"
+              @click="removeRobotApp"
+              title="Remove Robot App"
+            >
+              <X class="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+        <div 
+          class="text-xs p-2 bg-background border border-border rounded flex items-center gap-2 min-h-8 cursor-pointer"
+          @click="showRobotAppSelector"
+        >
+          <AppWindow class="w-4 h-4 text-muted-foreground flex-shrink-0" />
+          <span class="truncate" v-if="robotAppFile">{{ robotAppFile.name }}</span>
+          <span class="text-muted-foreground italic" v-else>Please add robot app</span>
+        </div>
+      </div>
+      
+      <!-- Robot Selector Modal -->
+      <div
+        v-if="showRobotSelectorModal"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        @click.self="closeRobotSelector"
+      >
+        <div class="bg-card border border-border rounded-lg p-4 min-w-80 max-w-md max-h-96 flex flex-col">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-medium">Select Robot</h3>
+            <Button
+              size="sm"
+              variant="ghost"
+              class="h-5 w-5 p-0"
+              @click="closeRobotSelector"
+            >
+              <X class="w-3 h-3" />
+            </Button>
+          </div>
+          
+          <ScrollArea class="flex-1">
+            <div class="space-y-1">
+              <div
+                v-for="robot in robotFiles"
+                :key="robot.path"
+                @click="selectRobot(robot)"
+                class="px-2 py-1.5 text-xs rounded flex items-center gap-2 cursor-pointer hover:bg-accent"
+                :class="{ 'bg-accent': robotFile?.path === robot.path }"
+              >
+                <FileText class="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                <span class="truncate">{{ robot.name }}</span>
+              </div>
+              <div v-if="robotFiles.length === 0" class="text-xs text-muted-foreground text-center py-4">
+                No robot files found
+              </div>
+            </div>
+          </ScrollArea>
+        </div>
+      </div>
+      
+      <!-- Robot App Selector Modal -->
+      <div
+        v-if="showRobotAppSelectorModal"
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        @click.self="closeRobotAppSelector"
+      >
+        <div class="bg-card border border-border rounded-lg p-4 min-w-80 max-w-md max-h-96 flex flex-col">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-medium">Select Robot App</h3>
+            <Button
+              size="sm"
+              variant="ghost"
+              class="h-5 w-5 p-0"
+              @click="closeRobotAppSelector"
+            >
+              <X class="w-3 h-3" />
+            </Button>
+          </div>
+          
+          <ScrollArea class="flex-1">
+            <div class="space-y-1">
+              <div
+                v-for="app in robotAppFiles"
+                :key="app.path"
+                @click="selectRobotApp(app)"
+                class="px-2 py-1.5 text-xs rounded flex items-center gap-2 cursor-pointer hover:bg-accent"
+                :class="{ 'bg-accent': robotAppFile?.path === app.path }"
+              >
+                <FileCode class="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                <span class="truncate">{{ app.name }}</span>
+              </div>
+              <div v-if="robotAppFiles.length === 0" class="text-xs text-muted-foreground text-center py-4">
+                No robot app files found
+              </div>
+            </div>
+          </ScrollArea>
+        </div>
+      </div>
+    </div>
+    
     <!-- Tab Header -->
     <div class="px-3 py-2 border-b border-border bg-muted/50">
       <h3 class="text-base font-medium text-foreground">Explorer</h3>
@@ -171,18 +357,31 @@ import {
   Edit,
   Download,
   Play,
-  X
+  Square,
+  Bot,
+  Plus,
+  X,
+  FileText,
+  AppWindow,
+  FileCode
 } from 'lucide-vue-next'
 
 // Define emits
 const emit = defineEmits<{
   'file-selected': [fileItem: FileItem]
-  'simulation': [fileItem: FileItem]
+  'simulation': [fileItem: FileItem, robotAppFile: FileItem | null, sceneFile: FileItem | null]
   'files-loaded': []
 }>()
 
 const fileTree = ref<FileTree>(globalFileTree)
 const selectedFile = ref<FileItem | null>(null)
+const robotFile = ref<FileItem | null>(null)
+const robotAppFile = ref<FileItem | null>(null)
+const simulationRunning = ref(false)
+const showRobotSelectorModal = ref(false)
+const showRobotAppSelectorModal = ref(false)
+const robotFiles = ref<FileItem[]>([])
+const robotAppFiles = ref<FileItem[]>([])
 
 // File input refs
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -210,6 +409,7 @@ const contextMenu = ref({
 })
 
 const contextMenuActions = [
+  { label: 'Add Robot', icon: Bot, action: 'add-robot' },
   { label: 'Simulation', icon: Play, action: 'simulation' },
   { label: 'Copy', icon: Copy, action: 'copy' },
   { label: 'Rename', icon: Edit, action: 'rename' },
@@ -254,7 +454,7 @@ const loadDefaultFiles = async () => {
         "SO101/so101_new_calib.xml",
         "SO101/so101_old_cbase_so101_v2alib.urdf",
         "humanoid.xml",
-        "weirui_std_rs.wasm",
+        "just_run_human.wasm",
   ]
     
   // Load each known file
@@ -500,9 +700,85 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
+const startSimulation = () => {
+  if (robotFile.value) {
+    simulationRunning.value = true
+    console.log('Starting simulation for:', robotFile.value.path)
+    emit('simulation', robotFile.value, robotAppFile.value, null)
+  }
+}
+
+const stopSimulation = () => {
+  simulationRunning.value = false
+  console.log('Stopping simulation')
+}
+
+const resetSimulation = () => {
+  simulationRunning.value = false
+  console.log('Resetting simulation')
+  // Restart simulation if needed
+  if (robotFile.value) {
+    simulationRunning.value = true
+    console.log('Restarting simulation for:', robotFile.value.path)
+    emit('simulation', robotFile.value, robotAppFile.value, null)
+  }
+}
+
+const showRobotSelector = () => {
+  // Find all .xml files in the file tree
+  const allFiles = fileTree.value.getFlatFileList()
+  robotFiles.value = allFiles.filter(file => 
+    file.type === 'file' && 
+    file.name.endsWith('.xml')
+  )
+  showRobotSelectorModal.value = true
+}
+
+const closeRobotSelector = () => {
+  showRobotSelectorModal.value = false
+}
+
+const selectRobot = (robot: FileItem) => {
+  robotFile.value = robot
+  showRobotSelectorModal.value = false
+  console.log('Robot selected:', robot.path)
+}
+
+const showRobotAppSelector = () => {
+  // Find all .wasm files in the file tree
+  const allFiles = fileTree.value.getFlatFileList()
+  robotAppFiles.value = allFiles.filter(file => 
+    file.type === 'file' && 
+    file.name.endsWith('.wasm')
+  )
+  showRobotAppSelectorModal.value = true
+}
+
+const closeRobotAppSelector = () => {
+  showRobotAppSelectorModal.value = false
+}
+
+const selectRobotApp = (app: FileItem) => {
+  robotAppFile.value = app
+  showRobotAppSelectorModal.value = false
+  console.log('Robot app selected:', app.path)
+}
+
+const removeRobot = () => {
+  robotFile.value = null
+  console.log('Robot removed')
+}
+
+const removeRobotApp = () => {
+  robotAppFile.value = null
+  console.log('Robot app removed')
+}
+
 const handleSimulation = (item: FileItem) => {
   console.log('Starting simulation for:', item.path)
-  emit('simulation', item)
+  robotFile.value = item
+  simulationRunning.value = true
+  emit('simulation', item, robotAppFile.value, null)
 }
 
 const selectFile = async (item: FileItem) => {
@@ -540,6 +816,12 @@ const executeAction = async (action: string) => {
   if (!item) return
 
   switch (action) {
+    case 'add-robot':
+      if (item.type === 'file') {
+        robotFile.value = item
+        console.log('Robot added:', item.path)
+      }
+      break
     case 'simulation':
       handleSimulation(item)
       break

@@ -117,6 +117,8 @@ import { MuJoCoInstance } from '@/mujoco_wasm/MujocoInstance';
 
 interface Props {
   filePath?: string
+  robotAppPath?: string
+  scenePath?: string
   isActive?: boolean
 }
 
@@ -267,15 +269,15 @@ const animate = () => {
 };
 
 // Watch for filePath changes
-watch(() => props.filePath, (newFilePath) => {
+watch(() => [props.filePath, props.robotAppPath, props.scenePath], ([newFilePath, newRobotAppPath, newScenePath]) => {
   if (newFilePath) {
-    console.log('File path changed, reinitializing MuJoCo with:', newFilePath)
-    initializeMuJoCo(newFilePath)
+    console.log('File path changed, reinitializing MuJoCo with:', newFilePath, newRobotAppPath, newScenePath)
+    initializeMuJoCo(newFilePath, newRobotAppPath, newScenePath)
   }
 })
 
 // Extract MuJoCo initialization logic
-const initializeMuJoCo = async (modelPath: string) => {
+const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, scenePath?: string) => {
   try {
     // Clean up existing instance
     if (mujocoInstanceRef.value) {
@@ -299,7 +301,7 @@ const initializeMuJoCo = async (modelPath: string) => {
     
     console.log('Loading MuJoCo model from path:', mujocoPath)
     
-    // Initialize new MuJoCoInstance
+    // Initialize new MuJoCoInstance with all paths
     const instance = new MuJoCoInstance(mujocoPath);
     mujocoInstanceRef.value = instance; // Expose to template
     
@@ -358,7 +360,7 @@ onMounted(async () => {
     
     // Initialize MuJoCo with provided file path or default
     const modelPath = props.filePath || "/SO101/so101_new_calib.xml"
-    await initializeMuJoCo(modelPath)
+    await initializeMuJoCo(modelPath, props.robotAppPath, props.scenePath)
     
     // Start the animation loop
     animate();
