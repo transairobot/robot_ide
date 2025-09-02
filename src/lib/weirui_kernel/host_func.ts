@@ -6,12 +6,12 @@ import { globalFileTree } from '../../components/sidebar/FileTree.ts';
 
 let robotAppExports: RobotAppExports | null = null;
 
-class WeiruiKernel {
+export class WeiruiKernel {
     mujocoInstance: MuJoCoInstance;
     wasmInstance: WebAssembly.Instance | null = null;
     robotAppPath: string;
     exports : RobotAppExports | null = null;
-    public constructor(robotPath: string, robotAppPath: string) {
+    public constructor(robotPath: string, scenePath: string, robotAppPath: string) {
         this.mujocoInstance = new MuJoCoInstance(robotPath)
         this.robotAppPath = robotAppPath;
     }
@@ -33,7 +33,7 @@ class WeiruiKernel {
         return module.instance;
     }
     readClass<T>(
-        clazz: { deserializeBinary: (bytes: Uint8Array) => T },
+        clazz: { decode: (bytes: Uint8Array) => T },
         memory: WebAssembly.Memory,
         ptr: number,
         length: number
@@ -47,8 +47,8 @@ class WeiruiKernel {
             // Read the serialized data
             const serializedData = new Uint8Array(memory.buffer, ptr, length);
 
-            // Deserialize the data using the class's deserializeBinary method
-            return clazz.deserializeBinary(serializedData);
+            // Deserialize the data using the class's decode method
+            return clazz.decode(serializedData);
         } catch (error) {
             return new WeiruiKernelError(500, `Deserialization failed: ${(error as Error).message}`);
         }
@@ -57,12 +57,12 @@ class WeiruiKernel {
     runTargetAction(req: RunTargetActionReq): RunTargetActionResp | WeiruiKernelError {
         // Print the parameters for debugging
         console.log('runTargetAction called with:');
-        console.log('Servo IDs:', req.getServoIdVecList());
-        console.log('Target radians:', req.getTargetRadVecList());
+        console.log('Servo IDs:', req.servoIdVec);
+        console.log('Target radians:', req.targetRadVec);
 
         // Get servo IDs and target radians
-        const servoIds = req.getServoIdVecList();
-        const targetRadians = req.getTargetRadVecList();
+        const servoIds = req.servoIdVec;
+        const targetRadians = req.targetRadVec;
 
         // Validate input lengths
         if (servoIds.length !== targetRadians.length) {
@@ -84,27 +84,28 @@ class WeiruiKernel {
         console.log("joint pos=", pos);
         
         // Create a response object
-        const resp = new RunTargetActionResp();
+        const resp = RunTargetActionResp.create();
 
         // Echo back the same data
-        resp.setServoIdVecList(req.getServoIdVecList());
-        resp.setTargetRadVecList(req.getTargetRadVecList());
+        resp.servoIdVec = req.servoIdVec;
+        resp.targetRadVec = req.targetRadVec;
 
         return resp;
     }
 
     WriteResp(host_result: HostResult): number {
-        let data = host_result.serializeBinary();
+        const writer = HostResult.encode(host_result);
+        const data = writer.finish();
         let app_ptr = robotAppExports!.__new_bytes(data.length);
-        const resp_buf = new Uint8Array(robotAppExports!.memory.buffer, app_ptr, length);
+        const resp_buf = new Uint8Array(robotAppExports!.memory.buffer, app_ptr, data.length);
         resp_buf.set(data)
         return app_ptr;
     }
 
-    RunHostFunc<ReqType, RespType extends { serializeBinary: () => Uint8Array }>(
+    RunHostFunc<ReqType, RespType>(
         ptr: number,
         len: number,
-        clazz: { deserializeBinary: (bytes: Uint8Array) => ReqType },
+        clazz: { decode: (bytes: Uint8Array) => ReqType },
         host_func: (req: ReqType) => RespType | WeiruiKernelError): number {
         if (!this.wasmInstance) {
             console.error('WASM module not loaded');
@@ -114,15 +115,15 @@ class WeiruiKernel {
         // Get memory from the WASM instance
         const memory = this.wasmInstance.exports.memory as WebAssembly.Memory;
 
-        let result = new HostResult();
+        let result = HostResult.create();
 
         // Read the serialized request from WASM memory
         const runTargetActionReq = this.readClass(clazz, memory, ptr, len);
 
         if (runTargetActionReq instanceof WeiruiKernelError) {
             console.error('Failed to deserialize RunTargetActionReq:', runTargetActionReq.message);
-            result.setErrorMessage(runTargetActionReq.message);
-            result.setErrorCode(runTargetActionReq.errorCode);
+            result.errorMessage = runTargetActionReq.message;
+            result.errorCode = runTargetActionReq.errorCode;
             return this.WriteResp(result);
         }
 
@@ -131,12 +132,23 @@ class WeiruiKernel {
 
         if (runTargetActionResp instanceof WeiruiKernelError) {
             console.error('runTargetAction failed:', runTargetActionResp.message);
-            result.setErrorMessage(runTargetActionResp.message);
-            result.setErrorCode(runTargetActionResp.errorCode);
+            result.errorMessage = runTargetActionResp.message;
+            result.errorCode = runTargetActionResp.errorCode;
             return this.WriteResp(result);
         }
 
-        result.setData(runTargetActionResp.serializeBinary());
+        // Check if runTargetActionResp has encode method
+        if (typeof (runTargetActionResp as any).encode === 'function') {
+            const writer = (runTargetActionResp as any).encode();
+            const data = writer.finish();
+            result.data = data;
+        } else {
+            console.error('runTargetActionResp does not have encode method');
+            result.errorMessage = 'Response object does not have encode method';
+            result.errorCode = 500;
+            return this.WriteResp(result);
+        }
+
         return this.WriteResp(result);
     }
 }
