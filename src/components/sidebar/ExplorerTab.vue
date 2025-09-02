@@ -1,62 +1,62 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- Tab Header -->
-    <div class="px-3 py-3 border-b border-border bg-muted/50">
-      <h3 class="text-lg font-medium text-foreground">Explorer</h3>
+    <div class="px-3 py-2 border-b border-border bg-muted/50">
+      <h3 class="text-base font-medium text-foreground">Explorer</h3>
     </div>
     
     <!-- Toolbar -->
-    <div class="p-3 border-b border-border flex items-center gap-2">
+    <div class="p-2 border-b border-border flex items-center gap-1.5">
       <Button
         size="sm"
         variant="ghost"
-        class="h-8 w-8 p-0"
+        class="h-7 w-7 p-0"
         @click="refreshFiles"
         title="Refresh"
       >
-        <RefreshCw class="w-5 h-5" />
+        <RefreshCw class="w-4 h-4" />
       </Button>
       <Button
         size="sm"
         variant="ghost"
-        class="h-8 w-8 p-0"
+        class="h-7 w-7 p-0"
         @click="createNewFile"
         title="New File"
       >
-        <FilePlus class="w-5 h-5" />
+        <FilePlus class="w-4 h-4" />
       </Button>
       <Button
         size="sm"
         variant="ghost"
-        class="h-8 w-8 p-0"
+        class="h-7 w-7 p-0"
         @click="createNewFolder"
         title="New Folder"
       >
-        <FolderPlus class="w-5 h-5" />
+        <FolderPlus class="w-4 h-4" />
       </Button>
       <Button
         size="sm"
         variant="ghost"
-        class="h-8 w-8 p-0"
+        class="h-7 w-7 p-0"
         @click="uploadFiles"
         title="Upload Files"
       >
-        <Upload class="w-5 h-5" />
+        <Upload class="w-4 h-4" />
       </Button>
       <Button
         size="sm"
         variant="ghost"
-        class="h-8 w-8 p-0"
+        class="h-7 w-7 p-0"
         @click="uploadFolder"
         title="Upload Folder"
       >
-        <FolderUp class="w-5 h-5" />
+        <FolderUp class="w-4 h-4" />
       </Button>
     </div>
 
     <!-- File Tree -->
     <ScrollArea class="flex-1">
-      <div class="p-2">
+      <div class="p-1.5">
         <FileTreeNode
           v-for="item in fileTree.getTree()"
           :key="item.path"
@@ -94,28 +94,28 @@
       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       @click.self="cancelUpload"
     >
-      <div class="bg-card border border-border rounded-lg p-4 min-w-80 max-w-md">
-        <div class="flex items-center justify-between mb-4">
+      <div class="bg-card border border-border rounded-lg p-3 min-w-64 max-w-md">
+        <div class="flex items-center justify-between mb-3">
           <h3 class="text-sm font-medium">{{ uploadProgress.isFolder ? 'Uploading Folder' : 'Uploading Files' }}</h3>
           <Button
             size="sm"
             variant="ghost"
-            class="h-6 w-6 p-0"
+            class="h-5 w-5 p-0"
             @click="cancelUpload"
           >
             <X class="w-3 h-3" />
           </Button>
         </div>
         
-        <div class="space-y-3">
+        <div class="space-y-2">
           <div class="text-xs text-muted-foreground">
             {{ uploadProgress.current }} / {{ uploadProgress.total }} files
           </div>
           
           <!-- Progress bar -->
-          <div class="w-full bg-secondary rounded-full h-2">
+          <div class="w-full bg-secondary rounded-full h-1.5">
             <div
-              class="bg-primary h-2 rounded-full transition-all duration-300"
+              class="bg-primary h-1.5 rounded-full transition-all duration-300"
               :style="{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }"
             ></div>
           </div>
@@ -145,7 +145,7 @@
         v-for="action in contextMenuActions"
         :key="action.label"
         @click="executeAction(action.action)"
-        class="w-full px-3 py-1 text-xs text-left hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
+        class="w-full px-2 py-1 text-xs text-left hover:bg-accent hover:text-accent-foreground flex items-center gap-1.5"
       >
         <component :is="action.icon" class="w-3 h-3" />
         {{ action.label }}
@@ -159,7 +159,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import FileTreeNode from './FileTreeNode.vue'
-import { FileTree, type FileItem } from './FileTree'
+import { globalFileTree, type FileItem, FileTree } from './FileTree'
 import { 
   RefreshCw, 
   FilePlus, 
@@ -181,7 +181,7 @@ const emit = defineEmits<{
   'files-loaded': []
 }>()
 
-const fileTree = ref<FileTree>(new FileTree())
+const fileTree = ref<FileTree>(globalFileTree)
 const selectedFile = ref<FileItem | null>(null)
 
 // File input refs
@@ -254,11 +254,9 @@ const loadDefaultFiles = async () => {
         "SO101/so101_new_calib.xml",
         "SO101/so101_old_cbase_so101_v2alib.urdf",
         "humanoid.xml",
+        "weirui_std_rs.wasm",
   ]
-  
-  // Clear existing tree
-  fileTree.value = new FileTree()
-  
+    
   // Load each known file
   for (const filepath of files) {
     console.log(filepath)

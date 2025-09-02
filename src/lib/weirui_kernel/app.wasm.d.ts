@@ -1,4 +1,8 @@
 // calc.wasm.d.ts
+export enum WEIRUI_CLIENT_LANGUAGE {
+    Rust = 1,
+}
+
 export interface RobotAppExports extends WebAssembly.Exports {
     memory: WebAssembly.Memory;
 

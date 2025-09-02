@@ -122,6 +122,37 @@ export class MuJoCoInstance {
     }
 
     /**
+     * 获取每个关节的位置值(qpos)
+     * @returns Float32Array - 包含关节名称和位置值的数组
+     */
+    getJointPos(): Float32Array {
+        const joints: number[] = [];
+        const textDecoder = new TextDecoder("utf-8");
+        const names_array = new Uint8Array(this.model.names);
+
+        // 遍历所有关节
+        for (let i = 0; i < this.model.njnt; i++) {
+            // 获取关节名称
+            const start_idx = this.model.name_jntadr[i];
+            let end_idx = start_idx;
+            while (end_idx < names_array.length && names_array[end_idx] !== 0) {
+                end_idx++;
+            }
+            const name_buffer = names_array.subarray(start_idx, end_idx);
+            const name = textDecoder.decode(name_buffer);
+
+            // 使用jnt_qposadr获取关节在qpos数组中的索引
+            const qpos_index = this.model.jnt_qposadr[i];
+            const qpos = this.state.qpos[qpos_index];
+
+            joints.push(qpos)
+        }
+        let res = new Float32Array(joints.length)
+        res.set(joints)
+        return res;
+    }
+
+    /**
      * 获取仿真时间步长
      * @returns {number} - 仿真时间步长
      */
