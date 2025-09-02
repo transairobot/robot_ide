@@ -14,6 +14,10 @@ let globalWeiruiKernel: WeiruiKernel | null = null;
 // 添加一个标志来检查 worker 是否正确初始化
 let workerInitialized = false;
 
+// 添加一个映射来跟踪待处理的请求
+const pendingRequests: Map<number, { resolve: Function, reject: Function }> = new Map();
+let messageId: number = 0;
+
 // Worker message handler
 self.onmessage = function (e) {
     console.log(`[WeiruiKernel] onmessage handler called with data:`, e.data);
@@ -48,6 +52,38 @@ self.onmessage = function (e) {
     if (type === 'ping' && id !== undefined) {
         console.log('[WeiruiKernel] Received ping, responding with pong');
         self.postMessage({ type: 'pong', id });
+        return;
+    }
+
+    // 处理 getJointPos 响应
+    if (type === 'getJointPosResponse' && id !== undefined) {
+        const { success, error } = e.data;
+        if (pendingRequests.has(id)) {
+            const { resolve, reject } = pendingRequests.get(id)!;
+            pendingRequests.delete(id);
+            
+            if (success) {
+                resolve(data);
+            } else {
+                reject(new Error(error || 'Unknown error'));
+            }
+        }
+        return;
+    }
+
+    // 处理 setActuatorControls 响应
+    if (type === 'setActuatorControlsResponse' && id !== undefined) {
+        const { success, error } = e.data;
+        if (pendingRequests.has(id)) {
+            const { resolve, reject } = pendingRequests.get(id)!;
+            pendingRequests.delete(id);
+            
+            if (success) {
+                resolve(data);
+            } else {
+                reject(new Error(error || 'Unknown error'));
+            }
+        }
         return;
     }
 
@@ -91,42 +127,12 @@ self.onmessage = function (e) {
             }
             break;
         case 'getJointPos':
-            try {
-                if (!globalWeiruiKernel) {
-                    throw new Error('Kernel not initialized');
-                }
-                // 这里需要访问MuJoCo实例来获取关节位置
-                // 由于WeiruiKernel内部封装了MuJoCo，我们需要在WeiruiKernel中添加相应方法
-                const jointPos = globalWeiruiKernel.getJointPos();
-                self.postMessage({ type: 'getJointPos', success: true, data: jointPos, id });
-            } catch (error) {
-                console.error('[WeiruiKernel] Failed to get joint positions:', error);
-                self.postMessage({
-                    type: 'getJointPos',
-                    success: false,
-                    error: error instanceof Error ? error.message : 'Unknown error',
-                    id
-                });
-            }
+            // 请求主线程获取关节位置
+            self.postMessage({ type: 'getJointPos', id });
             break;
         case 'setActuatorControls':
-            try {
-                if (!globalWeiruiKernel) {
-                    throw new Error('Kernel not initialized');
-                }
-                // 这里需要访问MuJoCo实例来设置执行器控制
-                const { actuatorIndices, values } = data;
-                globalWeiruiKernel.setActuatorControls(actuatorIndices, values);
-                self.postMessage({ type: 'setActuatorControls', success: true, id });
-            } catch (error) {
-                console.error('[WeiruiKernel] Failed to set actuator controls:', error);
-                self.postMessage({
-                    type: 'setActuatorControls',
-                    success: false,
-                    error: error instanceof Error ? error.message : 'Unknown error',
-                    id
-                });
-            }
+            // 请求主线程设置执行器控制
+            self.postMessage({ type: 'setActuatorControls', data, id });
             break;
         default:
             console.warn('[WeiruiKernel] Unknown message type:', type);
@@ -142,6 +148,39 @@ self.onmessage = function (e) {
 };
 
 console.log('[WeiruiKernel] kernel_worker.ts loaded successfully');
+
+// 添加sendMessage函数用于向主线程发送消息并等待响应
+function sendMessage(type: string, data?: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+        const id = messageId++;
+        pendingRequests.set(id, { resolve, reject });
+
+        console.log(`[WeiruiKernel] Sending message ${id} of type: ${type}`, data);
+
+        try {
+            self.postMessage({ type, data, id });
+            console.log(`[WeiruiKernel] Message ${id} sent successfully`);
+        } catch (error) {
+            console.error(`[WeiruiKernel] Failed to send message ${id}:`, error);
+            // 从待处理请求中移除
+            pendingRequests.delete(id);
+            reject(error);
+        }
+    });
+}
+
+// 添加getJointPos函数用于获取关节位置
+export function getJointPos(): Promise<Float32Array> {
+    console.log('[WeiruiKernel] Requesting joint positions from main thread');
+    return sendMessage('getJointPos');
+}
+
+// 添加setActuatorControls函数用于设置执行器控制
+export function setActuatorControls(actuatorIndices: number[], values: number[]): Promise<void> {
+    console.log('[WeiruiKernel] Requesting to set actuator controls from main thread', actuatorIndices, values);
+    const data = { actuatorIndices, values };
+    return sendMessage('setActuatorControls', data);
+}
 
 // 防止 TypeScript 报错
 export { };

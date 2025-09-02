@@ -102,6 +102,41 @@ export class WeiruiKernelWorkerClient {
       return;
     }
 
+    // 处理 getJointPos 请求
+    if (type === 'getJointPos' && id !== undefined) {
+      try {
+        const jointPos = this.mujocoInstance.getJointPos();
+        this.worker.postMessage({ type: 'getJointPosResponse', success: true, data: jointPos, id });
+      } catch (error) {
+        console.error('[WeiruiKernelWorkerClient] Failed to get joint positions:', error);
+        this.worker.postMessage({
+          type: 'getJointPosResponse',
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          id
+        });
+      }
+      return;
+    }
+
+    // 处理 setActuatorControls 请求
+    if (type === 'setActuatorControls' && id !== undefined) {
+      try {
+        const { actuatorIndices, values } = data;
+        this.mujocoInstance.setActuatorControls(actuatorIndices, values);
+        this.worker.postMessage({ type: 'setActuatorControlsResponse', success: true, id });
+      } catch (error) {
+        console.error('[WeiruiKernelWorkerClient] Failed to set actuator controls:', error);
+        this.worker.postMessage({
+          type: 'setActuatorControlsResponse',
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          id
+        });
+      }
+      return;
+    }
+
     if (id !== undefined && this.pendingRequests.has(id)) {
       // 这是一个响应消息
       const { resolve, reject } = this.pendingRequests.get(id)!;
