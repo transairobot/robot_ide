@@ -214,3 +214,6 @@ export class FileTree {
     this.addItem(file, folderPath)
   }
 }
+
+// Global unique instance of FileTree
+export const globalFileTree = new FileTree()

@@ -2,7 +2,7 @@
   <div>
     <div
       :class="[
-        'group flex items-center gap-2 px-2 py-2 text-base rounded cursor-pointer hover:bg-accent/50',
+        'group flex items-center gap-2 px-2 py-1.5 text-sm rounded cursor-pointer hover:bg-accent/50',
         { 'bg-accent text-accent-foreground': isSelected }
       ]"
       :style="{ paddingLeft: `${(level) * 16 + 4}px` }"
@@ -12,30 +12,30 @@
       <!-- Icon Container (includes Expand/Collapse Icon and File/Folder Icon) -->
       <div class="flex items-center gap-2 flex-1 min-w-0">
         <!-- Expand/Collapse Icon -->
-        <div v-if="item.type === 'folder'" class="w-5 h-5 flex items-center justify-center flex-shrink-0">
+        <div v-if="item.type === 'folder'" class="w-4 h-4 flex items-center justify-center flex-shrink-0">
           <ChevronRight
             :class="[
-              'w-5 h-5 transition-transform text-muted-foreground',
+              'w-4 h-4 transition-transform text-muted-foreground',
               { 'rotate-90': item.expanded }
             ]"
           />
         </div>
 
         <!-- File Icon-->
-        <div v-if="item.type === 'file'" class="w-6 h-6 flex items-center justify-center flex-shrink-0">
-          <component :is="getFileIcon(item)" class="w-5 h-5" />
+        <div v-if="item.type === 'file'" class="w-5 h-5 flex items-center justify-center flex-shrink-0">
+          <component :is="getFileIcon(item)" class="w-4 h-4" />
         </div>
         
         <!-- File/Folder Name -->
-        <span class="truncate font-medium">{{ item.name }}</span>
+        <span class="truncate">{{ item.name }}</span>
       </div>
 
       <!-- Three Dots Menu -->
       <button
         @click.stop="toggleMenu"
-        class="w-6 h-6 flex items-center justify-center hover:bg-accent rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        class="w-5 h-5 flex items-center justify-center hover:bg-accent rounded opacity-0 group-hover:opacity-100 transition-opacity"
       >
-        <MoreHorizontal class="w-4 h-4" />
+        <MoreHorizontal class="w-3.5 h-3.5" />
       </button>
     </div>
 
