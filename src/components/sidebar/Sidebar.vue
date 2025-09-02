@@ -24,7 +24,7 @@
         <ExplorerTab 
           v-show="activeTab === 'explorer'" 
           @file-selected="emit('file-selected', $event)"
-          @simulation="emit('simulation', $event)"
+          @simulation="(fileItem, robotAppFile, sceneFile) => emit('simulation', fileItem, robotAppFile, sceneFile)"
           @files-loaded="emit('files-loaded')"
           ref="explorerTabRef"
         />
@@ -72,7 +72,7 @@ import ExplorerTab from './ExplorerTab.vue'
 const emit = defineEmits<{
   'content-collapsed': [collapsed: boolean]
   'file-selected': [fileItem: any]
-  'simulation': [fileItem: any]
+  'simulation': [robotFile: any, robotAppFile: any, sceneFile: any]
   'files-loaded': []
 }>()
 

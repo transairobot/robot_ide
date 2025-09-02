@@ -213,6 +213,24 @@ export class FileTree {
     // Add file to the folder
     this.addItem(file, folderPath)
   }
+
+  // Get a flat list of all files
+  getFlatFileList(): FileItem[] {
+    const files: FileItem[] = []
+    
+    const traverse = (items: FileItem[]) => {
+      for (const item of items) {
+        if (item.type === 'file') {
+          files.push(item)
+        } else if (item.type === 'folder' && item.children) {
+          traverse(item.children)
+        }
+      }
+    }
+    
+    traverse(this.root)
+    return files
+  }
 }
 
 // Global unique instance of FileTree
