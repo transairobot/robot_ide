@@ -1,22 +1,22 @@
 <template>
   <div class="h-full flex flex-col">
     <!-- Simulation Control Area -->
-    <div class="px-3 py-2 border-b border-border bg-muted/50">
-      <div class="flex items-center gap-2 mb-2">
+    <div class="px-2 py-1.5 border-b border-gray-200 bg-gray-50">
+      <div class="flex items-center gap-1 mb-1.5">
         <Button
           size="sm"
           variant="outline"
-          class="h-7 px-2 text-xs"
+          class="h-6 px-1.5 text-xs font-mono"
           @click="startSimulation"
           :disabled="simulationRunning || !robotFile"
         >
           <Play class="w-3 h-3 mr-1" />
-          Simulate
+          Run
         </Button>
         <Button
           size="sm"
           variant="outline"
-          class="h-7 px-2 text-xs"
+          class="h-6 px-1.5 text-xs font-mono"
           @click="stopSimulation"
           :disabled="!simulationRunning"
         >
@@ -26,7 +26,7 @@
         <Button
           size="sm"
           variant="outline"
-          class="h-7 px-2 text-xs"
+          class="h-6 px-1.5 text-xs font-mono"
           @click="resetSimulation"
           :disabled="!simulationRunning"
         >
@@ -36,74 +36,74 @@
       </div>
       
       <!-- Robot Display -->
-      <div class="mt-2">
-        <div class="text-xs text-muted-foreground mb-1 flex justify-between items-center">
+      <div class="mb-1.5">
+        <div class="text-xs text-gray-600 mb-0.5 flex justify-between items-center font-mono">
           <span>Robot:</span>
-          <div class="flex gap-1">
+          <div class="flex gap-0.5">
             <Button
               size="sm"
               variant="ghost"
-              class="h-5 w-5 p-0"
+              class="h-4 w-4 p-0"
               @click="showRobotSelector"
               title="Select Robot"
             >
-              <Plus class="w-3 h-3" />
+              <Plus class="w-2.5 h-2.5" />
             </Button>
             <Button
               v-if="robotFile"
               size="sm"
               variant="ghost"
-              class="h-5 w-5 p-0"
+              class="h-4 w-4 p-0"
               @click="removeRobot"
               title="Remove Robot"
             >
-              <X class="w-3 h-3" />
+              <X class="w-2.5 h-2.5" />
             </Button>
           </div>
         </div>
         <div 
-          class="text-xs p-2 bg-background border border-border rounded flex items-center gap-2 min-h-8 cursor-pointer"
+          class="text-xs p-1.5 bg-white border border-gray-200 rounded flex items-center gap-1.5 min-h-6 cursor-pointer hover:bg-gray-50"
           @click="showRobotSelector"
         >
-          <Bot class="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <span class="truncate" v-if="robotFile">{{ robotFile.name }}</span>
-          <span class="text-muted-foreground italic" v-else>Please add robot</span>
+          <Bot class="w-3 h-3 text-gray-500 flex-shrink-0" />
+          <span class="truncate font-mono" v-if="robotFile">{{ robotFile.name }}</span>
+          <span class="text-gray-400 italic font-mono" v-else>Select robot file</span>
         </div>
       </div>
       
       <!-- Robot App Display -->
-      <div class="mt-2">
-        <div class="text-xs text-muted-foreground mb-1 flex justify-between items-center">
-          <span>Robot App:</span>
-          <div class="flex gap-1">
+      <div>
+        <div class="text-xs text-gray-600 mb-0.5 flex justify-between items-center font-mono">
+          <span>App:</span>
+          <div class="flex gap-0.5">
             <Button
               size="sm"
               variant="ghost"
-              class="h-5 w-5 p-0"
+              class="h-4 w-4 p-0"
               @click="showRobotAppSelector"
               title="Select Robot App"
             >
-              <Plus class="w-3 h-3" />
+              <Plus class="w-2.5 h-2.5" />
             </Button>
             <Button
               v-if="robotAppFile"
               size="sm"
               variant="ghost"
-              class="h-5 w-5 p-0"
+              class="h-4 w-4 p-0"
               @click="removeRobotApp"
               title="Remove Robot App"
             >
-              <X class="w-3 h-3" />
+              <X class="w-2.5 h-2.5" />
             </Button>
           </div>
         </div>
         <div 
-          class="text-xs p-2 bg-background border border-border rounded flex items-center gap-2 min-h-8 cursor-pointer"
+          class="text-xs p-1.5 bg-white border border-gray-200 rounded flex items-center gap-1.5 min-h-6 cursor-pointer hover:bg-gray-50"
           @click="showRobotAppSelector"
         >
-          <AppWindow class="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <span class="truncate" v-if="robotAppFile">{{ robotAppFile.name }}</span>
-          <span class="text-muted-foreground italic" v-else>Please add robot app</span>
+          <AppWindow class="w-3 h-3 text-gray-500 flex-shrink-0" />
+          <span class="truncate font-mono" v-if="robotAppFile">{{ robotAppFile.name }}</span>
+          <span class="text-gray-400 italic font-mono" v-else>Select app file</span>
         </div>
       </div>
       
@@ -459,7 +459,6 @@ const loadDefaultFiles = async () => {
     
   // Load each known file
   for (const filepath of files) {
-    console.log(filepath)
     try {
       const response = await fetch(`/${filepath}`)
       const substrs = filepath.split("/")
@@ -478,7 +477,7 @@ const loadDefaultFiles = async () => {
         // Add file to tree
         fileTree.value.addFileToPath(fileItem, filepath)
         
-        console.log(`Loaded: ${fileName} (${formatFileSize(content.byteLength)})`)
+        // console.log(`Loaded: ${fileName} (${formatFileSize(content.byteLength)})`)
       }
     } catch (error) {
       console.warn(`Failed to load ${filepath}:`, error)

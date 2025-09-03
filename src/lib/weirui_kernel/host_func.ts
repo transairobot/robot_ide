@@ -1,7 +1,6 @@
-import { RunTargetActionReq, RunTargetActionResp, HostResult } from './host_pb'
-import { WeiruiKernelError, MemoryOutOfBounds } from './errors'
+import { HostResult, ConsoleWriteReq } from './host_pb'
+import { WeiruiKernelError, MemoryOutOfBounds, InternalError } from './errors'
 import type { RobotAppExports } from './app.wasm.d.ts';
-import { MuJoCoInstance } from '@/mujoco_wasm/MujocoInstance';
 import { FuncTable } from './func_table.ts';
 
 
@@ -9,7 +8,7 @@ export class WeiruiKernel {
     wasmInstance: WebAssembly.Instance | null = null;
     robotAppWasm: ArrayBuffer;
     robotAppExports: RobotAppExports | null = null;
-    mujocoInstance: MuJoCoInstance | null = null;
+
     public constructor(robotAppWasm: ArrayBuffer) {
         this.robotAppWasm = robotAppWasm;
     }
@@ -37,7 +36,19 @@ export class WeiruiKernel {
             env: {
                 run_target_action: (ptr: number, len: number): number => {
                     console.log(`[WeiruiKernel] WASM calling run_target_action with ptr: ${ptr}, len: ${len}`);
-                    return this.RunHostFunc(ptr, len, RunTargetActionReq, RunTargetActionResp, this.runTargetAction)
+                    return this.RunHostFunc(ptr, len, FuncTable.runTargetAction)
+                },
+                get_actuator_info: (ptr: number, len: number): number => {
+                    console.log(`[WeiruiKernel] WASM calling get_actuator_info with ptr: ${ptr}, len: ${len}`);
+                    return this.RunHostFunc(ptr, len, FuncTable.getActuatorInfo)
+                },
+                get_joint_info: (ptr: number, len: number): number => {
+                    console.log(`[WeiruiKernel] WASM calling get_joint_info with ptr: ${ptr}, len: ${len}`);
+                    return this.RunHostFunc(ptr, len, FuncTable.getJointInfo)
+                },
+                console_write: (ptr: number, len: number): number => {
+                    console.log(`[WeiruiKernel] WASM calling console_write with ptr: ${ptr}, len: ${len}`);
+                    return this.RunHostFunc(ptr, len, FuncTable.consoleWrite)
                 }
             }
         };
@@ -45,71 +56,6 @@ export class WeiruiKernel {
         const module = await WebAssembly.instantiate(wasm_buffer, imports);
         console.log('[WeiruiKernel] WASM module instantiated successfully');
         return module.instance;
-    }
-    readClass<T>(
-        clazz: { decode: (bytes: Uint8Array) => T },
-        memory: WebAssembly.Memory,
-        ptr: number,
-        length: number
-    ): T | WeiruiKernelError {
-        try {
-            console.log(`[WeiruiKernel] Reading class from WASM memory at ptr: ${ptr}, length: ${length}`);
-            // Check if we have enough memory
-            if (ptr + length > memory.buffer.byteLength) {
-                console.error(`[WeiruiKernel] Memory access out of bounds: ptr(${ptr}) + length(${length}) > buffer size(${memory.buffer.byteLength})`);
-                return new MemoryOutOfBounds('Memory access out of bounds');
-            }
-
-            // Read the serialized data
-            const serializedData = new Uint8Array(memory.buffer, ptr, length);
-            console.log(`[WeiruiKernel] Read ${serializedData.length} bytes from WASM memory`);
-
-            // Deserialize the data using the class's decode method
-            const result = clazz.decode(serializedData);
-            console.log('[WeiruiKernel] Deserialized data successfully');
-            return result;
-        } catch (error) {
-            console.error('[WeiruiKernel] Deserialization failed:', error);
-            return new WeiruiKernelError(500, `Deserialization failed: ${(error as Error).message}`);
-        }
-    }
-
-    runTargetAction(req: RunTargetActionReq): RunTargetActionResp | WeiruiKernelError {
-        // Print the parameters for debugging
-        console.log('[WeiruiKernel] runTargetAction called with:');
-        console.log('[WeiruiKernel] Servo IDs:', req.servoIdVec);
-        console.log('[WeiruiKernel] Target radians:', req.targetRadVec);
-
-        // Get servo IDs and target radians
-        const servoIds = req.servoIdVec;
-        const targetRadians = req.targetRadVec;
-
-        // Validate input lengths
-        if (servoIds.length !== targetRadians.length) {
-            console.error(`[WeiruiKernel] Servo ID list and target radians list must have the same length: ${servoIds.length} vs ${targetRadians.length}`);
-            return new WeiruiKernelError(400, 'Servo ID list and target radians list must have the same length');
-        }
-
-        // Apply target actions to Mujoco instance
-        console.log(`[WeiruiKernel] Setting ${servoIds.length} actuator controls`);
-        FuncTable.setActuatorControls(servoIds.map(id => id - 1), targetRadians);
-
-
-        // Get current joint positions
-        console.log('[WeiruiKernel] Getting joint positions');
-        let pos = FuncTable.getJointPos();
-        console.log(`[WeiruiKernel] Retrieved ${pos.length} joint positions`);
-
-        // Create a response object
-        const resp = RunTargetActionResp.create();
-        console.log('[WeiruiKernel] Created response object');
-
-        // Echo back the same data
-        resp.servoIdVec = req.servoIdVec;
-        resp.targetRadVec = req.targetRadVec;
-        console.log('[WeiruiKernel] Populated response with request data');
-
-        return resp;
     }
 
     WriteResp(host_result: HostResult): number {
@@ -125,52 +71,48 @@ export class WeiruiKernel {
         return app_ptr;
     }
 
-    RunHostFunc<ReqType, RespType>(
+    RunHostFunc(
         ptr: number,
         len: number,
-        reqClazz: { decode: (bytes: Uint8Array) => ReqType },
-        respClazz: { encode: (message: RespType) => { finish: () => Uint8Array } },
-        host_func: (req: ReqType) => RespType | WeiruiKernelError): number {
+        host_func: (req: Uint8Array) => Uint8Array | WeiruiKernelError
+    ): number {
         console.log(`[WeiruiKernel] RunHostFunc called with ptr: ${ptr}, len: ${len}`);
 
         if (!this.wasmInstance) {
             console.error('[WeiruiKernel] WASM module not loaded');
-            return 0;
+            const errRes = HostResult.create({ errorCode: 500, errorMessage: "WASM module not loaded" });
+            return this.WriteResp(errRes);
         }
 
-        // Get memory from the WASM instance
         const memory = this.wasmInstance.exports.memory as WebAssembly.Memory;
-        console.log(`[WeiruiKernel] WASM memory size: ${memory.buffer.byteLength} bytes`);
-
         let result = HostResult.create();
-        console.log('[WeiruiKernel] Created HostResult object');
 
-        // Read the serialized request from WASM memory
-        const runTargetActionReq = this.readClass(reqClazz, memory, ptr, len);
-
-        if (runTargetActionReq instanceof WeiruiKernelError) {
-            console.error('[WeiruiKernel] Failed to deserialize RunTargetActionReq:', runTargetActionReq.message);
-            result.errorMessage = runTargetActionReq.message;
-            result.errorCode = runTargetActionReq.errorCode;
+        if (ptr + len > memory.buffer.byteLength) {
+            let error = new MemoryOutOfBounds(`ptr=${ptr} len=${len} exceeds memory size ${memory.buffer.byteLength}`);
+            result.errorMessage = error.message;
+            result.errorCode = error.errorCode;
             return this.WriteResp(result);
         }
+        const reqBuf = new Uint8Array(memory.buffer.slice(ptr, ptr + len));
 
-        // Call the actual implementation
-        console.log('[WeiruiKernel] Calling host function');
-        const runTargetActionResp = host_func(runTargetActionReq);
+        console.log('[WeiruiKernel] Calling host function with raw buffer');
+        try {
+            const respData = host_func(reqBuf);
 
-        if (runTargetActionResp instanceof WeiruiKernelError) {
-            console.error('[WeiruiKernel] runTargetAction failed:', runTargetActionResp.message);
-            result.errorMessage = runTargetActionResp.message;
-            result.errorCode = runTargetActionResp.errorCode;
-            return this.WriteResp(result);
+            if (respData instanceof WeiruiKernelError) {
+                result.errorMessage = respData.message;
+                result.errorCode = respData.errorCode;
+            } else {
+                result.data = respData;
+                console.log(`[WeiruiKernel] Received response buffer: ${respData.length} bytes`);
+            }
+        } catch (e) {
+            const err = e as Error;
+            console.error(`[WeiruiKernel] Error in host function: ${err.message}`);
+            let error = new InternalError(err.message);
+            result.errorMessage = error.message;
+            result.errorCode = error.errorCode;
         }
-
-        console.log('[WeiruiKernel] Encoding response');
-        const writer = respClazz.encode(runTargetActionResp);
-        const data = writer.finish();
-        result.data = data;
-        console.log(`[WeiruiKernel] Encoded response: ${data.length} bytes`);
 
         console.log('[WeiruiKernel] Writing response to WASM memory');
         return this.WriteResp(result);

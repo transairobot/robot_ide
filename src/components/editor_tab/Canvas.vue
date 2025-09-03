@@ -69,11 +69,11 @@
       <div v-show="!isJointPanelCollapsed" class="overflow-y-auto p-2">
         <div v-for="(actuator, index) in actuators" :key="index" class="mb-3 last:mb-0">
           <div class="text-muted-foreground mb-1">{{ actuator.name }}</div>
-          <input type="range" :min="actuator.min" :max="actuator.max" step="0.01" :value="actuatorValues[index] || 0"
-            @input="onActuatorChange(index, $event)" class="w-full" />
+          <input type="range" :min="actuator.ctrl_min" :max="actuator.ctrl_max" step="0.01"
+            :value="actuatorValues[index] || 0" @input="onActuatorChange(index, $event)" class="w-full" />
           <div class="text-muted-foreground text-xs mt-1">
-            Value: {{ (actuatorValues[index] || 0).toFixed(2) }} [{{ actuator.min.toFixed(2) }}, {{
-              actuator.max.toFixed(2) }}]
+            Value: {{ (actuatorValues[index] || 0).toFixed(2) }} [{{ actuator.ctrl_min.toFixed(2) }}, {{
+              actuator.ctrl_max.toFixed(2) }}]
           </div>
         </div>
       </div>
@@ -98,7 +98,7 @@ import {
   Maximize,
   Settings
 } from 'lucide-vue-next'
-import { MuJoCoInstance } from '@/mujoco_wasm/MujocoInstance';
+import { MuJoCoInstance, ActuatorInfo } from '@/mujoco_wasm/MujocoInstance';
 import { WeiruiKernelWorkerClient } from '@/lib/weirui_kernel/worker_client';
 import { globalFileTree } from '../sidebar/FileTree';
 
@@ -116,7 +116,7 @@ const isModelLoaded = ref(false);
 const fps = ref(0);
 const mujocoInstanceRef = shallowRef<MuJoCoInstance | null>(null); // Expose mujocoInstance to template
 const weiruiKernelWorkerClient = shallowRef<WeiruiKernelWorkerClient | null>(null);
-const actuators = ref<Array<{ name: string, min: number, max: number }>>([]); // Store actuator names and ranges
+const actuators = ref<Array<ActuatorInfo>>([]); // Store actuator names and ranges
 const actuatorValues = ref<{ [key: number]: number }>({}); // Store actuator values
 const isJointPanelCollapsed = ref(false); // Track if joint panel is collapsed
 const timestep = ref<number>(0.016); // Default timestep value
@@ -298,18 +298,19 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
 
     mujocoInstanceRef.value = instance; // Expose to template
 
-    console.log('MuJoCoInstance created:', instance.getJointPos());
     // Get timestep
     timestep.value = instance.getTimestep();
     console.log('Timestep:', timestep.value);
 
     // Get actuator names and ranges
-    actuators.value = instance.getActuatorNamesAndRanges();
+    actuators.value = instance.getActuatorInfo();
     console.log('Actuators:', actuators.value);
+    let jointInfo = instance.getJointInfo();
+    console.log('Joints:', jointInfo);
     for (let i = 0; i < actuators.value.length; i++) {
       // Initialize with a default value, e.g., 0 or the middle of the range
       const actuator = actuators.value[i];
-      actuatorValues.value[i] = (actuator.min + actuator.max) / 2;
+      actuatorValues.value[i] = actuator.ctrl || 0;
     }
 
     // Get the Three.js renderable objects

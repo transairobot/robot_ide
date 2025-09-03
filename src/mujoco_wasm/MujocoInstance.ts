@@ -60,7 +60,7 @@ function syncFileItem(fileItem: any, basePath: string) {
                 const stream = global_mujoco.FS.open(fullPath, 'w+');
                 global_mujoco.FS.write(stream, new Uint8Array(fileItem.content), 0, fileItem.content.byteLength, 0);
                 global_mujoco.FS.close(stream);
-                console.log(`写入文件: ${fullPath}, 大小: ${fileItem.content.byteLength} 字节`);
+                // console.log(`写入文件: ${fullPath}, 大小: ${fileItem.content.byteLength} 字节`);
             } else {
                 // 创建空文件
                 const stream = global_mujoco.FS.open(fullPath, 'w+');
@@ -72,6 +72,48 @@ function syncFileItem(fileItem: any, basePath: string) {
             console.error(`写入文件失败: ${fullPath}`, e);
         }
     }
+}
+
+export class ActuatorInfo {
+    name: string;
+    id: number;
+    joint_id: number;
+    type: 'motor' | 'position';
+    vendor: string = 'mujoco';
+    model: string = 'generic';
+    ctrl: number;
+    ctrl_min: number;
+    ctrl_max: number;
+    force_min: number;
+    force_max: number;
+    constructor(
+        name: string,
+        id: number,
+        joint_id: number,
+        type: 'motor' | 'position',
+        ctrl: number,
+        ctrl_min: number,
+        ctrl_max: number,
+        force_min: number,
+        force_max: number) {
+        this.name = name;
+        this.id = id;
+        this.joint_id = joint_id;
+        this.type = type;
+        this.ctrl = ctrl;
+        this.ctrl_min = ctrl_min;
+        this.ctrl_max = ctrl_max;
+        this.force_min = force_min;
+        this.force_max = force_max;
+    }
+}
+
+export class JointInfo {
+    name: string;
+    id: number;
+    type: 'hinge' | 'slide' | 'ball' | 'free';
+    dof_dim: number;
+    joint_pos: number[];
 }
 
 export class MuJoCoInstance {
@@ -433,7 +475,7 @@ export class MuJoCoInstance {
             }
 
             // 添加到层次结构
-            console.log(`添加body ${b} (${bodies[b].name}) 到层次结构`);
+            // console.log(`添加body ${b} (${bodies[b].name}) 到层次结构`);
             if (b == 0 || !bodies[0]) {
                 mujocoRoot.add(bodies[b]);
             } else {
@@ -505,5 +547,120 @@ export class MuJoCoInstance {
         const y = buffer[(index * 4) + 2];
         const z = buffer[(index * 4) + 3];
         return target.set(x, z, -y, w);
+    }
+
+    getActuatorInfo(): ActuatorInfo[] {
+        const actuators: ActuatorInfo[] = [];
+        const textDecoder = new TextDecoder("utf-8");
+        const names_array = new Uint8Array(this.model.names);
+
+        for (let i = 0; i < this.model.nu; i++) {
+            // 获取执行器名称
+            const start_idx = this.model.name_actuatoradr[i];
+            let end_idx = start_idx;
+            while (end_idx < names_array.length && names_array[end_idx] !== 0) {
+                end_idx++;
+            }
+            const name_buffer = names_array.subarray(start_idx, end_idx);
+            const name = textDecoder.decode(name_buffer);
+
+            // 类型推断（这里只做简单判断，可根据需要扩展）
+            let type: 'motor' | 'position' = "motor";
+            if (this.model.actuator_trntype && this.model.actuator_biastype[i] === 1) {
+                type = "position";
+            }
+
+            // 控制范围
+            let ctrl_min = -1, ctrl_max = 1;
+            if (this.model.actuator_ctrllimited[i]) {
+                ctrl_min = this.model.actuator_ctrlrange[i * 2];
+                ctrl_max = this.model.actuator_ctrlrange[i * 2 + 1];
+            }
+
+            let ctrl = this.simulation.ctrl[i];
+
+            // 力范围
+            let force_min = -1, force_max = 1;
+            if (this.model.actuator_forcelimited && this.model.actuator_forcelimited[i]) {
+                force_min = this.model.actuator_forcerange[i * 2];
+                force_max = this.model.actuator_forcerange[i * 2 + 1];
+            }
+
+            let joint_id = -1;
+            if (this.model.actuator_trntype[i] === global_mujoco.mjtTrn.mjTRN_JOINT.value) {
+                joint_id = this.model.actuator_trnid[i * 2];
+            }
+
+            actuators.push(new ActuatorInfo(
+                name,
+                i,
+                joint_id,
+                type,
+                ctrl,
+                ctrl_min,
+                ctrl_max,
+                force_min,
+                force_max
+            ));
+        }
+        return actuators;
+    }
+
+    getJointInfo(): JointInfo[] {
+        const joints: JointInfo[] = [];
+        const textDecoder = new TextDecoder("utf-8");
+        const names_array = new Uint8Array(this.model.names);
+
+        // 遍历所有关节
+        for (let i = 0; i < this.model.njnt; i++) {
+            // 获取关节名称
+            const start_idx = this.model.name_jntadr[i];
+            let end_idx = start_idx;
+            while (end_idx < names_array.length && names_array[end_idx] !== 0) {
+                end_idx++;
+            }
+            const name_buffer = names_array.subarray(start_idx, end_idx);
+            const name = textDecoder.decode(name_buffer);
+
+            // 使用jnt_type获取关节类型
+            let type = "hinge";
+            let dof_dim = 0;
+            switch (this.model.jnt_type[i]) {
+                case global_mujoco.mjtJoint.mjJNT_HINGE.value:
+                    type = "hinge";
+                    dof_dim = 1;
+                    break;
+                case global_mujoco.mjtJoint.mjJNT_SLIDE.value:
+                    type = "slide";
+                    dof_dim = 1;
+                    break;
+                case global_mujoco.mjtJoint.mjJNT_BALL.value:
+                    type = "ball";
+                    dof_dim = 3;
+                    break;
+                case global_mujoco.mjtJoint.mjJNT_FREE.value:
+                    type = "free";
+                    dof_dim = 6;
+                    break;
+                default:
+                    type = "unknown";
+            }
+
+            // 获取关节位置值
+            const qpos_index = this.model.jnt_qposadr[i];
+            const joint_pos = [];
+            for (let d = 0; d < dof_dim; d++) {
+                joint_pos.push(this.simulation.qpos[qpos_index + d]);
+            }
+
+            joints.push({
+                name: name,
+                id: i,
+                type: type,
+                dof_dim: dof_dim,
+                joint_pos: joint_pos
+            });
+        }
+        return joints;
     }
 }

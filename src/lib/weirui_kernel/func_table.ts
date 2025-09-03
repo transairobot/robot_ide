@@ -24,11 +24,15 @@ function syncRequest(type: string, data?: any): any {
         throw new Error(`[WeiruiKernel/FuncTable] Request '${type}' timed out.`);
     }
 
-    // 4. Read and decode response from buffer
-    const zero_idx = responseView.indexOf(0);
-    const valid_response = responseView.slice(0, zero_idx === -1 ? responseView.length : zero_idx);
-    const decodedResponse = new TextDecoder().decode(valid_response);
+    // 4. Read length-prefixed JSON response from buffer
+    const lenView = new Uint32Array(responseBuffer!, 0, 1);
+    const len = lenView[0];
+    // Create a copy of the data to avoid issues with shared buffers
+    const responseBytes = new Uint8Array(len);
+    responseBytes.set(new Uint8Array(responseBuffer!, 4, len));
+    const decodedResponse = new TextDecoder().decode(responseBytes);
     const response = JSON.parse(decodedResponse);
+
 
     if (!response.success) {
         throw new Error(response.error || `[WeiruiKernel/FuncTable] Unknown error during '${type}' request.`);
@@ -50,7 +54,8 @@ export class FuncTable {
     // 添加getJointPos函数用于获取关节位置
     public static getJointPos(): Float32Array {
         console.log('[WeiruiKernel/FuncTable] Requesting joint positions from main thread');
-        return syncRequest('getJointPos');
+        const data = syncRequest('getJointPos');
+        return new Float32Array(data);
     }
 
     // 添加setActuatorControls函数用于设置执行器控制
@@ -58,5 +63,30 @@ export class FuncTable {
         console.log('[WeiruiKernel/FuncTable] Requesting to set actuator controls from main thread', actuatorIndices, values);
         const data = { actuatorIndices, values };
         syncRequest('setActuatorControls', data);
+    }
+
+    public static runTargetAction(reqBuf: Uint8Array): Uint8Array {
+        console.log('[WeiruiKernel/FuncTable] Requesting runTargetAction from main thread');
+        const respData = syncRequest('runTargetAction', reqBuf);
+        return new Uint8Array(respData);
+    }
+
+    public static getActuatorInfo(reqBuf: Uint8Array): Uint8Array {
+        console.log('[WeiruiKernel/FuncTable] Requesting getActuatorInfo from main thread');
+        const respData = syncRequest('getActuatorInfo', reqBuf);
+        return new Uint8Array(respData);
+    }
+
+    public static getJointInfo(reqBuf: Uint8Array): Uint8Array {
+        console.log('[WeiruiKernel/FuncTable] Requesting getJointInfo from main thread');
+        const respData = syncRequest('getJointInfo', reqBuf);
+        return new Uint8Array(respData);
+    }
+
+    // 添加consoleWrite函数用于向控制台输出
+    public static consoleWrite(reqBuf: Uint8Array): Uint8Array {
+        console.log('[WeiruiKernel/FuncTable] Requesting consoleWrite from main thread');
+        const respData = syncRequest('consoleWrite', reqBuf);
+        return new Uint8Array(respData);
     }
 }
