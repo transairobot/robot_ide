@@ -10,12 +10,20 @@ export class WeiruiKernelWorkerClient {
   private workerReady: Promise<void>;
   private mujocoInstance: MuJoCoInstance; // 如果需要，可以定义具体类型
 
+  private responseBuffer: SharedArrayBuffer;
+  private notificationBuffer: SharedArrayBuffer;
+  private notificationView: Int32Array;
+
   constructor(
+    mujocoInstance: MuJoCoInstance,
     workerScriptUrl: string | URL = new URL('./kernel_worker.ts', import.meta.url),
-    mujocoInstance: MuJoCoInstance
   ) {
     console.log('[WeiruiKernelWorkerClient] Creating worker with URL:', workerScriptUrl);
     this.worker = new Worker(workerScriptUrl, { type: 'module' });
+
+    this.responseBuffer = new SharedArrayBuffer(4096);
+    this.notificationBuffer = new SharedArrayBuffer(4);
+    this.notificationView = new Int32Array(this.notificationBuffer);
 
     // 创建一个 Promise 来跟踪 Worker 是否准备就绪
     this.workerReady = this.waitForWorkerReady();
@@ -106,15 +114,24 @@ export class WeiruiKernelWorkerClient {
     if (type === 'getJointPos' && id !== undefined) {
       try {
         const jointPos = this.mujocoInstance.getJointPos();
-        this.worker.postMessage({ type: 'getJointPosResponse', success: true, data: jointPos, id });
-      } catch (error) {
-        console.error('[WeiruiKernelWorkerClient] Failed to get joint positions:', error);
-        this.worker.postMessage({
-          type: 'getJointPosResponse',
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          id
-        });
+        const response = JSON.stringify({ success: true, data: jointPos });
+        const encoded = new TextEncoder().encode(response);
+        const view = new Uint8Array(this.responseBuffer);
+        view.fill(0);
+        view.set(encoded, 0);
+
+        Atomics.store(this.notificationView, 0, 1);
+        Atomics.notify(this.notificationView, 0, 1);
+      } catch (err) {
+        console.error('[WeiruiKernelWorkerClient] Failed to get joint positions:', err);
+        const response = JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+        const encoded = new TextEncoder().encode(response);
+        const view = new Uint8Array(this.responseBuffer);
+        view.fill(0);
+        view.set(encoded, 0);
+
+        Atomics.store(this.notificationView, 0, 1);
+        Atomics.notify(this.notificationView, 0, 1);
       }
       return;
     }
@@ -124,15 +141,24 @@ export class WeiruiKernelWorkerClient {
       try {
         const { actuatorIndices, values } = data;
         this.mujocoInstance.setActuatorControls(actuatorIndices, values);
-        this.worker.postMessage({ type: 'setActuatorControlsResponse', success: true, id });
-      } catch (error) {
-        console.error('[WeiruiKernelWorkerClient] Failed to set actuator controls:', error);
-        this.worker.postMessage({
-          type: 'setActuatorControlsResponse',
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          id
-        });
+        const response = JSON.stringify({ success: true, data: null });
+        const encoded = new TextEncoder().encode(response);
+        const view = new Uint8Array(this.responseBuffer);
+        view.fill(0);
+        view.set(encoded, 0);
+
+        Atomics.store(this.notificationView, 0, 1);
+        Atomics.notify(this.notificationView, 0, 1);
+      } catch (err) {
+        console.error('[WeiruiKernelWorkerClient] Failed to set actuator controls:', err);
+        const response = JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+        const encoded = new TextEncoder().encode(response);
+        const view = new Uint8Array(this.responseBuffer);
+        view.fill(0);
+        view.set(encoded, 0);
+
+        Atomics.store(this.notificationView, 0, 1);
+        Atomics.notify(this.notificationView, 0, 1);
       }
       return;
     }
@@ -185,28 +211,30 @@ export class WeiruiKernelWorkerClient {
    */
   public async init(robotAppWasm: ArrayBuffer): Promise<void> {
     console.log(`[WeiruiKernelWorkerClient] Initializing`);
-    const initData: InitData = { robotAppWasm };
-    await this.sendMessage('init', initData);
-  }
+    await this.workerReady;
 
-  /**
-   * 获取关节位置
-   * @returns Promise<Float32Array> 关节位置数组
-   */
-  public async getJointPos(): Promise<Float32Array> {
-    console.log(`[WeiruiKernelWorkerClient] Getting joint positions`);
-    return await this.sendMessage('getJointPos');
-  }
+    return new Promise((resolve, reject) => {
+      const id = this.messageId++;
+      this.pendingRequests.set(id, { resolve, reject });
 
-  /**
-   * 设置执行器控制值
-   * @param actuatorIndices 执行器索引数组
-   * @param values 控制值数组
-   * @returns Promise<void>
-   */
-  public async setActuatorControls(actuatorIndices: number[], values: number[]): Promise<void> {
-    console.log(`[WeiruiKernelWorkerClient] Setting actuator controls`, actuatorIndices, values);
-    const data: SetActuatorControlsData = { actuatorIndices, values };
-    await this.sendMessage('setActuatorControls', data);
+      const initData = {
+        robotAppWasm,
+        responseBuffer: this.responseBuffer,
+        notificationBuffer: this.notificationBuffer,
+      };
+
+      console.log(`[WeiruiKernelWorkerClient] Sending message ${id} of type: init`);
+
+      try {
+        this.worker.postMessage({ type: 'init', data: initData, id }, [
+          initData.robotAppWasm,
+        ]);
+        console.log(`[WeiruiKernelWorkerClient] Message ${id} sent successfully`);
+      } catch (error) {
+        console.error(`[WeiruiKernelWorkerClient] Failed to send message ${id}:`, error);
+        this.pendingRequests.delete(id);
+        reject(error);
+      }
+    });
   }
 }

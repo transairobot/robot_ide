@@ -2,6 +2,7 @@ import { RunTargetActionReq, RunTargetActionResp, HostResult } from './host_pb'
 import { WeiruiKernelError, MemoryOutOfBounds } from './errors'
 import type { RobotAppExports } from './app.wasm.d.ts';
 import { MuJoCoInstance } from '@/mujoco_wasm/MujocoInstance';
+import { FuncTable } from './func_table.ts';
 
 
 export class WeiruiKernel {
@@ -9,20 +10,24 @@ export class WeiruiKernel {
     robotAppWasm: ArrayBuffer;
     robotAppExports: RobotAppExports | null = null;
     mujocoInstance: MuJoCoInstance | null = null;
-    
     public constructor(robotAppWasm: ArrayBuffer) {
         this.robotAppWasm = robotAppWasm;
     }
-    
+
     public async init() {
         console.log('[WeiruiKernel] Initializing WASM module');
         this.wasmInstance = await this.loadWasm(this.robotAppWasm);
+        console.log('[WeiruiKernel] WASM module loaded, extracting exports: ',
+            this.wasmInstance.exports);
         this.robotAppExports = this.wasmInstance.exports as RobotAppExports;
         console.log('[WeiruiKernel] WASM module loaded successfully');
-        
-        // 初始化MuJoCo实例 - 这里需要根据实际需求进行调整
-        // 目前我们只是添加一个占位符，实际实现可能需要从WASM或其他来源获取模型文件
-        // this.mujocoInstance = new MuJoCoInstance(/* model filepath */);
+    }
+
+    public start() {
+        if (this.robotAppExports) {
+            console.log('[WeiruiKernel] Starting main function in WASM module');
+            this.robotAppExports!.main();
+        }
     }
 
     public async loadWasm(wasm_buffer: ArrayBuffer): Promise<WebAssembly.Instance> {
@@ -32,7 +37,7 @@ export class WeiruiKernel {
             env: {
                 run_target_action: (ptr: number, len: number): number => {
                     console.log(`[WeiruiKernel] WASM calling run_target_action with ptr: ${ptr}, len: ${len}`);
-                    return this.RunHostFunc(ptr, len, RunTargetActionReq, this.runTargetAction)
+                    return this.RunHostFunc(ptr, len, RunTargetActionReq, RunTargetActionResp, this.runTargetAction)
                 }
             }
         };
@@ -87,19 +92,12 @@ export class WeiruiKernel {
 
         // Apply target actions to Mujoco instance
         console.log(`[WeiruiKernel] Setting ${servoIds.length} actuator controls`);
-        for (let i = 0; i < servoIds.length; i++) {
-            // Convert from 1-based ID to 0-based index for Mujoco
-            const actuatorIndex = servoIds[i] - 1;
-            const targetValue = targetRadians[i];
+        FuncTable.setActuatorControls(servoIds.map(id => id - 1), targetRadians);
 
-            // Set actuator control in Mujoco
-            console.log(`[WeiruiKernel] Setting actuator ${actuatorIndex} to ${targetValue}`);
-            this.mujocoInstance.setActuatorControl(actuatorIndex, targetValue);
-        }
 
         // Get current joint positions
         console.log('[WeiruiKernel] Getting joint positions');
-        let pos = this.mujocoInstance.getJointPos()
+        let pos = FuncTable.getJointPos();
         console.log(`[WeiruiKernel] Retrieved ${pos.length} joint positions`);
 
         // Create a response object
@@ -119,7 +117,7 @@ export class WeiruiKernel {
         const writer = HostResult.encode(host_result);
         const data = writer.finish();
         console.log(`[WeiruiKernel] Encoded response data: ${data.length} bytes`);
-        let app_ptr = this.robotAppExports!.__new_bytes(data.length);
+        let app_ptr = this.robotAppExports!.wasm_new_bytes(data.length);
         console.log(`[WeiruiKernel] Allocated ${data.length} bytes in WASM memory at ptr: ${app_ptr}`);
         const resp_buf = new Uint8Array(this.robotAppExports!.memory.buffer, app_ptr, data.length);
         resp_buf.set(data)
@@ -130,10 +128,11 @@ export class WeiruiKernel {
     RunHostFunc<ReqType, RespType>(
         ptr: number,
         len: number,
-        clazz: { decode: (bytes: Uint8Array) => ReqType },
+        reqClazz: { decode: (bytes: Uint8Array) => ReqType },
+        respClazz: { encode: (message: RespType) => { finish: () => Uint8Array } },
         host_func: (req: ReqType) => RespType | WeiruiKernelError): number {
         console.log(`[WeiruiKernel] RunHostFunc called with ptr: ${ptr}, len: ${len}`);
-        
+
         if (!this.wasmInstance) {
             console.error('[WeiruiKernel] WASM module not loaded');
             return 0;
@@ -147,7 +146,7 @@ export class WeiruiKernel {
         console.log('[WeiruiKernel] Created HostResult object');
 
         // Read the serialized request from WASM memory
-        const runTargetActionReq = this.readClass(clazz, memory, ptr, len);
+        const runTargetActionReq = this.readClass(reqClazz, memory, ptr, len);
 
         if (runTargetActionReq instanceof WeiruiKernelError) {
             console.error('[WeiruiKernel] Failed to deserialize RunTargetActionReq:', runTargetActionReq.message);
@@ -167,44 +166,13 @@ export class WeiruiKernel {
             return this.WriteResp(result);
         }
 
-        // Check if runTargetActionResp has encode method
-        if (typeof (runTargetActionResp as any).encode === 'function') {
-            console.log('[WeiruiKernel] Encoding response');
-            const writer = (runTargetActionResp as any).encode();
-            const data = writer.finish();
-            result.data = data;
-            console.log(`[WeiruiKernel] Encoded response: ${data.length} bytes`);
-        } else {
-            console.error('[WeiruiKernel] runTargetActionResp does not have encode method');
-            result.errorMessage = 'Response object does not have encode method';
-            result.errorCode = 500;
-            return this.WriteResp(result);
-        }
+        console.log('[WeiruiKernel] Encoding response');
+        const writer = respClazz.encode(runTargetActionResp);
+        const data = writer.finish();
+        result.data = data;
+        console.log(`[WeiruiKernel] Encoded response: ${data.length} bytes`);
 
         console.log('[WeiruiKernel] Writing response to WASM memory');
         return this.WriteResp(result);
-    }
-
-    /**
-     * 获取关节位置
-     * @returns Float32Array 关节位置数组
-     */
-    public getJointPos(): Float32Array {
-        if (!this.mujocoInstance) {
-            throw new Error('MuJoCo instance not initialized');
-        }
-        return this.mujocoInstance.getJointPos();
-    }
-
-    /**
-     * 设置执行器控制值
-     * @param actuatorIndices 执行器索引数组
-     * @param values 控制值数组
-     */
-    public setActuatorControls(actuatorIndices: number[], values: number[]): void {
-        if (!this.mujocoInstance) {
-            throw new Error('MuJoCo instance not initialized');
-        }
-        this.mujocoInstance.setActuatorControls(actuatorIndices, values);
     }
 }

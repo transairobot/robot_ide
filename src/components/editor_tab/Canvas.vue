@@ -29,7 +29,7 @@
           <Move3D :size="14" />
         </Button>
       </div> -->
-      
+
       <div class="flex gap-1 bg-card/90 backdrop-blur-sm border border-border rounded-md p-1">
         <!-- Grid toggle is not directly applicable in 3D, but could control helper visibility -->
         <!-- <Button
@@ -40,34 +40,28 @@
         >
           <Grid3x3 :size="14" />
         </Button> -->
-        <Button
-          size="sm"
-          variant="ghost"
-          class="h-8 w-8 p-0 hover:bg-secondary"
-        >
+        <Button size="sm" variant="ghost" class="h-8 w-8 p-0 hover:bg-secondary">
           <Maximize :size="14" />
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          class="h-8 w-8 p-0 hover:bg-secondary"
-        >
+        <Button size="sm" variant="ghost" class="h-8 w-8 p-0 hover:bg-secondary">
           <Settings :size="14" />
         </Button>
       </div>
     </div>
 
     <!-- Status Info -->
-    <div class="absolute bottom-4 left-4 z-10 bg-card/90 backdrop-blur-sm border border-border rounded-md p-2 text-xs text-foreground">
-      <div>Status: <span :class="{'text-green-500': isModelLoaded, 'text-yellow-500': !isModelLoaded}">
-        {{ isModelLoaded ? 'Model Loaded' : 'Loading Model...' }}
-      </span></div>
+    <div
+      class="absolute bottom-4 left-4 z-10 bg-card/90 backdrop-blur-sm border border-border rounded-md p-2 text-xs text-foreground">
+      <div>Status: <span :class="{ 'text-green-500': isModelLoaded, 'text-yellow-500': !isModelLoaded }">
+          {{ isModelLoaded ? 'Model Loaded' : 'Loading Model...' }}
+        </span></div>
       <div class="text-muted-foreground mt-1">Use mouse to control view</div>
       <div class="text-muted-foreground mt-1">FPS: <span id="stats-panel">{{ fps }}</span></div>
     </div>
 
     <!-- Controls Panel -->
-    <div v-if="isModelLoaded && actuators.length > 0" class="absolute top-4 right-4 z-10 bg-card/90 backdrop-blur-sm border border-border rounded-md text-xs text-foreground max-h-80 overflow-hidden flex flex-col">
+    <div v-if="isModelLoaded && actuators.length > 0"
+      class="absolute top-4 right-4 z-10 bg-card/90 backdrop-blur-sm border border-border rounded-md text-xs text-foreground max-h-80 overflow-hidden flex flex-col">
       <div class="flex justify-between items-center p-2 bg-secondary cursor-pointer" @click="toggleControlsPanel">
         <div class="text-muted-foreground">Controls</div>
         <div>{{ isJointPanelCollapsed ? '▼' : '▲' }}</div>
@@ -75,27 +69,18 @@
       <div v-show="!isJointPanelCollapsed" class="overflow-y-auto p-2">
         <div v-for="(actuator, index) in actuators" :key="index" class="mb-3 last:mb-0">
           <div class="text-muted-foreground mb-1">{{ actuator.name }}</div>
-          <input 
-            type="range" 
-            :min="actuator.min" 
-            :max="actuator.max" 
-            step="0.01" 
-            :value="actuatorValues[index] || 0" 
-            @input="onActuatorChange(index, $event)" 
-            class="w-full"
-          />
+          <input type="range" :min="actuator.min" :max="actuator.max" step="0.01" :value="actuatorValues[index] || 0"
+            @input="onActuatorChange(index, $event)" class="w-full" />
           <div class="text-muted-foreground text-xs mt-1">
-            Value: {{ (actuatorValues[index] || 0).toFixed(2) }} [{{ actuator.min.toFixed(2) }}, {{ actuator.max.toFixed(2) }}]
+            Value: {{ (actuatorValues[index] || 0).toFixed(2) }} [{{ actuator.min.toFixed(2) }}, {{
+              actuator.max.toFixed(2) }}]
           </div>
         </div>
       </div>
     </div>
 
     <!-- Three.js Renderer Container -->
-    <div
-      ref="rendererContainerRef"
-      class="w-full h-full"
-    />
+    <div ref="rendererContainerRef" class="w-full h-full" />
   </div>
 </template>
 
@@ -105,15 +90,17 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 import Button from '@/components/ui/Button.vue'
-import { 
-  ZoomIn, 
-  ZoomOut, 
-  Move3D, 
+import {
+  ZoomIn,
+  ZoomOut,
+  Move3D,
   Grid3x3,
   Maximize,
   Settings
 } from 'lucide-vue-next'
 import { MuJoCoInstance } from '@/mujoco_wasm/MujocoInstance';
+import { WeiruiKernelWorkerClient } from '@/lib/weirui_kernel/worker_client';
+import { globalFileTree } from '../sidebar/FileTree';
 
 interface Props {
   filePath?: string
@@ -128,8 +115,9 @@ const rendererContainerRef = ref<HTMLDivElement | null>(null);
 const isModelLoaded = ref(false);
 const fps = ref(0);
 const mujocoInstanceRef = shallowRef<MuJoCoInstance | null>(null); // Expose mujocoInstance to template
-const actuators = ref<Array<{name: string, min: number, max: number}>>([]); // Store actuator names and ranges
-const actuatorValues = ref<{[key: number]: number}>({}); // Store actuator values
+const weiruiKernelWorkerClient = shallowRef<WeiruiKernelWorkerClient | null>(null);
+const actuators = ref<Array<{ name: string, min: number, max: number }>>([]); // Store actuator names and ranges
+const actuatorValues = ref<{ [key: number]: number }>({}); // Store actuator values
 const isJointPanelCollapsed = ref(false); // Track if joint panel is collapsed
 const timestep = ref<number>(0.016); // Default timestep value
 
@@ -140,7 +128,7 @@ let simulationInterval: number | null = null;
 const scene = new THREE.Scene();
 let camera: THREE.PerspectiveCamera;
 // 创建渲染器
-const renderer = new THREE.WebGLRenderer({ 
+const renderer = new THREE.WebGLRenderer({
   antialias: true,
   alpha: true,
   powerPreference: "high-performance"
@@ -197,7 +185,7 @@ const onActuatorChange = (index: number, event: Event) => {
   const target = event.target as HTMLInputElement;
   const value = parseFloat(target.value);
   actuatorValues.value[index] = value;
-  
+
   if (mujocoInstanceRef.value) {
     mujocoInstanceRef.value.setActuatorControl(index, value);
   }
@@ -208,7 +196,7 @@ const resizeRenderer = () => {
     const container = rendererContainerRef.value;
     const width = container.clientWidth;
     const height = container.clientHeight;
-    
+
     // Initialize camera if not already done
     if (!camera) {
       camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
@@ -218,7 +206,7 @@ const resizeRenderer = () => {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     }
-    
+
     renderer.setSize(width, height);
   }
 };
@@ -243,7 +231,7 @@ defineExpose({
 // Animation loop
 const animate = () => {
   animationRef = requestAnimationFrame(animate);
-  
+
   // Calculate FPS
   frameCount++;
   const currentTime = performance.now();
@@ -252,18 +240,18 @@ const animate = () => {
     frameCount = 0;
     lastTime = currentTime;
   }
-  
+
   // Update Three.js objects
   if (mujocoInstanceRef.value && mujocoRenderableData) {
     // Update the Three.js representation
     mujocoInstanceRef.value.updateThreeJSBodies(mujocoRenderableData);
   }
-  
+
   // Update controls
   if (controls) {
     controls.update(); // required if controls.enableDamping or controls.autoRotate are set to true
   }
-  
+
   // Render the scene
   renderer.render(scene, camera);
 };
@@ -284,31 +272,37 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
       // Clean up previous instance if needed
       mujocoInstanceRef.value = null
     }
-    
+
+    if (weiruiKernelWorkerClient.value) {
+      weiruiKernelWorkerClient.value = null;
+    }
+
     // Clear scene
     if (mujocoRenderableData) {
       scene.remove(mujocoRenderableData.mujocoRoot)
       mujocoRenderableData = null
     }
-    
+
     // Stop simulation interval
     stopSimulation();
-    
+
     isModelLoaded.value = false
-    
+
     // Convert file path to MuJoCo FS path format
     let mujocoPath = modelPath
-    
+
     console.log('Loading MuJoCo model from path:', mujocoPath)
-    
+
     // Initialize new MuJoCoInstance with all paths
     const instance = new MuJoCoInstance(mujocoPath);
+
     mujocoInstanceRef.value = instance; // Expose to template
-    
+
+    console.log('MuJoCoInstance created:', instance.getJointPos());
     // Get timestep
     timestep.value = instance.getTimestep();
     console.log('Timestep:', timestep.value);
-    
+
     // Get actuator names and ranges
     actuators.value = instance.getActuatorNamesAndRanges();
     console.log('Actuators:', actuators.value);
@@ -317,20 +311,26 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
       const actuator = actuators.value[i];
       actuatorValues.value[i] = (actuator.min + actuator.max) / 2;
     }
-    
+
     // Get the Three.js renderable objects
     mujocoRenderableData = instance.getThreeJSRenderableBodies();
-    
+
     // Add the root object to the scene
     scene.add(mujocoRenderableData.mujocoRoot);
-    
+
     isModelLoaded.value = true;
-    
+    let robotAppWasm = globalFileTree.findItemByPath(robotAppPath || '')?.content;
+    if (robotAppWasm) {
+      const client = new WeiruiKernelWorkerClient(instance);
+      client.init(robotAppWasm!)
+      weiruiKernelWorkerClient.value = client;
+    }
+
     // Start the simulation loop if active
     if (props.isActive) {
       startSimulation();
     }
-    
+
   } catch (error) {
     console.error("Failed to load MuJoCo model:", error);
     isModelLoaded.value = false;
@@ -341,13 +341,13 @@ onMounted(async () => {
   if (rendererContainerRef.value) {
     // Append the renderer's DOM element to the container
     rendererContainerRef.value.appendChild(renderer.domElement);
-    
+
     // Set initial size
     resizeRenderer();
-    
+
     // Add window resize listener
     window.addEventListener('resize', resizeRenderer);
-    
+
     // Initialize OrbitControls after camera is created
     if (camera) {
       controls = new OrbitControls(camera, renderer.domElement);
@@ -357,11 +357,11 @@ onMounted(async () => {
       controls.minDistance = 0.5;
       controls.maxDistance = 10;
     }
-    
+
     // Initialize MuJoCo with provided file path or default
     const modelPath = props.filePath || "/SO101/so101_new_calib.xml"
     await initializeMuJoCo(modelPath, props.robotAppPath, props.scenePath)
-    
+
     // Start the animation loop
     animate();
   }
@@ -370,27 +370,27 @@ onMounted(async () => {
 onUnmounted(() => {
   // Clean up resources
   window.removeEventListener('resize', resizeRenderer);
-  
+
   if (animationRef) {
     cancelAnimationFrame(animationRef);
   }
-  
+
   stopSimulation();
-  
+
   if (controls) {
     controls.dispose();
   }
-  
+
   // Dispose of Three.js objects if necessary
   // This is a basic cleanup, you might need to dispose of geometries, materials, etc. more thoroughly
   renderer.dispose();
-  
+
   // Clean up mujocoInstanceRef
   if (mujocoInstanceRef.value) {
     // If there are any specific cleanup methods for MuJoCoInstance, call them here
     mujocoInstanceRef.value = null;
   }
-  
+
   // Clean up actuators and actuatorValues
   actuators.value = [];
   actuatorValues.value = {};

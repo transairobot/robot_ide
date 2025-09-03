@@ -79,6 +79,7 @@ export class MuJoCoInstance {
     state!: State;
     simulation!: Simulation;
     timestep!: number; // 0.002 seconds
+    private simulationInterval: number | null = null;
 
     constructor(filepath: string) {
         console.log("filepath=", filepath)
@@ -121,6 +122,18 @@ export class MuJoCoInstance {
         return true;
     }
 
+    setActuatorControls(actuatorIndex: number[], value: number[]): boolean {
+        if (actuatorIndex.length !== value.length) {
+            console.error('Actuator indices and values arrays must have the same length.');
+            return false;
+        }
+        for (let i = 0; i < actuatorIndex.length; i++) {
+            if (!this.setActuatorControl(actuatorIndex[i], value[i])) {
+                return false;
+            }
+        }
+    }
+
     /**
      * 获取每个关节的位置值(qpos)
      * @returns Float32Array - 包含关节名称和位置值的数组
@@ -143,7 +156,7 @@ export class MuJoCoInstance {
 
             // 使用jnt_qposadr获取关节在qpos数组中的索引
             const qpos_index = this.model.jnt_qposadr[i];
-            const qpos = this.state.qpos[qpos_index];
+            const qpos = this.simulation.qpos[qpos_index];
 
             joints.push(qpos)
         }
@@ -491,16 +504,6 @@ export class MuJoCoInstance {
         const x = buffer[(index * 4) + 1];
         const y = buffer[(index * 4) + 2];
         const z = buffer[(index * 4) + 3];
-
-        // Convert from MuJoCo (Z-up) to Three.js (Y-up) coordinate system
-        // This is equivalent to a -90 degree rotation around the X axis
-        // The quaternion for this rotation is [sqrt(2)/2, -sqrt(2)/2, 0, 0]
-        // To combine rotations, we multiply quaternions: q_result = q_rotation * q_original
-        // But for simplicity, we can directly transform the components:
-        // x = x
-        // y = z
-        // z = -y
-        // w = w
         return target.set(x, z, -y, w);
     }
 }
