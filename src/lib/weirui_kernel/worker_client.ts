@@ -1,6 +1,14 @@
 import type { MuJoCoInstance } from '@/mujoco_wasm/MujocoInstance';
+import {
+  RunTargetActionReq, RunTargetActionResp, GetActuatorInfoResp, GetActuatorInfoReq,
+  ActuatorType,
+  GetJointInfoReq,
+  GetJointInfoResp,
+  JointType,
+  ConsoleWriteReq
+} from './host_pb';
 import type {
-  Message, InitData, SetActuatorControlsData
+  Message, InitData
 } from './message';
 
 export class WeiruiKernelWorkerClient {
@@ -83,6 +91,24 @@ export class WeiruiKernelWorkerClient {
     });
   }
 
+  private writeResponseToSAB(response: object) {
+    const responseStr = JSON.stringify(response);
+    const encoded = new TextEncoder().encode(responseStr);
+    const len = encoded.length;
+
+    const view = new Uint8Array(this.responseBuffer);
+    view.fill(0); // Clear previous response
+
+    const lenView = new Uint32Array(this.responseBuffer, 0, 1);
+    lenView[0] = len;
+
+    const dataView = new Uint8Array(this.responseBuffer, 4);
+    dataView.set(encoded);
+
+    Atomics.store(this.notificationView, 0, 1);
+    Atomics.notify(this.notificationView, 0, 1);
+  }
+
   private handleMessage(event: MessageEvent) {
     console.log('[WeiruiKernelWorkerClient] Received message from worker:', event.data);
     const { type, success, data, error, id } = event.data;
@@ -114,24 +140,9 @@ export class WeiruiKernelWorkerClient {
     if (type === 'getJointPos' && id !== undefined) {
       try {
         const jointPos = this.mujocoInstance.getJointPos();
-        const response = JSON.stringify({ success: true, data: jointPos });
-        const encoded = new TextEncoder().encode(response);
-        const view = new Uint8Array(this.responseBuffer);
-        view.fill(0);
-        view.set(encoded, 0);
-
-        Atomics.store(this.notificationView, 0, 1);
-        Atomics.notify(this.notificationView, 0, 1);
+        this.writeResponseToSAB({ success: true, data: Array.from(jointPos) });
       } catch (err) {
-        console.error('[WeiruiKernelWorkerClient] Failed to get joint positions:', err);
-        const response = JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
-        const encoded = new TextEncoder().encode(response);
-        const view = new Uint8Array(this.responseBuffer);
-        view.fill(0);
-        view.set(encoded, 0);
-
-        Atomics.store(this.notificationView, 0, 1);
-        Atomics.notify(this.notificationView, 0, 1);
+        this.writeResponseToSAB({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
       }
       return;
     }
@@ -141,28 +152,110 @@ export class WeiruiKernelWorkerClient {
       try {
         const { actuatorIndices, values } = data;
         this.mujocoInstance.setActuatorControls(actuatorIndices, values);
-        const response = JSON.stringify({ success: true, data: null });
-        const encoded = new TextEncoder().encode(response);
-        const view = new Uint8Array(this.responseBuffer);
-        view.fill(0);
-        view.set(encoded, 0);
-
-        Atomics.store(this.notificationView, 0, 1);
-        Atomics.notify(this.notificationView, 0, 1);
+        this.writeResponseToSAB({ success: true, data: null });
       } catch (err) {
-        console.error('[WeiruiKernelWorkerClient] Failed to set actuator controls:', err);
-        const response = JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
-        const encoded = new TextEncoder().encode(response);
-        const view = new Uint8Array(this.responseBuffer);
-        view.fill(0);
-        view.set(encoded, 0);
-
-        Atomics.store(this.notificationView, 0, 1);
-        Atomics.notify(this.notificationView, 0, 1);
+        this.writeResponseToSAB({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
       }
       return;
     }
 
+    // 处理 runTargetAction 请求
+    if (type === 'runTargetAction' && id !== undefined) {
+      try {
+        const req = RunTargetActionReq.decode(data as Uint8Array);
+
+        const servoIds = req.servoIdVec;
+        const targetRadians = req.targetRadVec;
+
+        if (servoIds.length !== targetRadians.length) {
+          throw new Error('Servo ID list and target radians list must have the same length');
+        }
+
+        this.mujocoInstance.setActuatorControls(servoIds.map(id => id - 1), targetRadians);
+        this.mujocoInstance.getJointPos(); // Step simulation
+
+        const resp = RunTargetActionResp.create({
+          servoIdVec: req.servoIdVec,
+          targetRadVec: req.targetRadVec,
+        });
+
+        const respBuf = RunTargetActionResp.encode(resp).finish();
+        this.writeResponseToSAB({ success: true, data: Array.from(respBuf) });
+      } catch (err) {
+        this.writeResponseToSAB({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+      }
+      return;
+    }
+
+    // 处理 getActuatorInfo 请求
+    if (type === 'getActuatorInfo' && id !== undefined) {
+      try {
+        const req = GetActuatorInfoReq.decode(data as Uint8Array);
+        const actuatorInfo = this.mujocoInstance.getActuatorInfo();
+
+        const resp = GetActuatorInfoResp.create({
+                  actuators: actuatorInfo.map(info => ({
+                    name: info.name,
+                    id: info.id,
+                    type: info.type === 'position' ? ActuatorType.POSITION : ActuatorType.MOTOR,
+                    vendor: info.vendor || '',
+                    model: info.model || '',
+                    ctrl: info.ctrl,
+                    ctrlMin: info.ctrl_min,
+                    ctrlMax: info.ctrl_max,
+                    forceMin: info.force_min,
+                    forceMax: info.force_max,
+                    jointId: info.joint_id,
+                  })),
+                });
+
+        const respBuf = GetActuatorInfoResp.encode(resp).finish();
+        this.writeResponseToSAB({ success: true, data: Array.from(respBuf) });
+      } catch (err) {
+        this.writeResponseToSAB({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+      }
+      return;
+    }
+
+    // 处理 getJointInfo 请求
+    if (type === 'getJointInfo' && id !== undefined) {
+      try {
+        const req = GetJointInfoReq.decode(data as Uint8Array);
+        const jointInfo = this.mujocoInstance.getJointInfo();
+
+        const resp = GetJointInfoResp.create({
+          joints: jointInfo.map(info => ({
+            name: info.name,
+            id: info.id,
+            type: info.type === 'slide' ? JointType.SLIDE :
+                  info.type === 'ball' ? JointType.BALL :
+                  info.type === 'free' ? JointType.FREE :
+                  JointType.HINGE,
+            dofDim: info.dof_dim,
+            jointPos: info.joint_pos,
+          })),
+        });
+
+        const respBuf = GetJointInfoResp.encode(resp).finish();
+        this.writeResponseToSAB({ success: true, data: Array.from(respBuf) });
+      } catch (err) {
+        this.writeResponseToSAB({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+      }
+      return;
+    }
+
+
+    // 处理 consoleWrite 请求
+    if (type === 'consoleWrite' && id !== undefined) {
+      try {
+        const req = ConsoleWriteReq.decode(data as Uint8Array);
+        console.log(`[WeiruiKernelWorkerClient] Console output: ${req.message}`);
+        this.writeResponseToSAB({ success: true, data: null });
+      } catch (err) {
+        this.writeResponseToSAB({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+      }
+      return;
+    }
     if (id !== undefined && this.pendingRequests.has(id)) {
       // 这是一个响应消息
       const { resolve, reject } = this.pendingRequests.get(id)!;
@@ -181,33 +274,9 @@ export class WeiruiKernelWorkerClient {
     }
   }
 
-  private async sendMessage(type: string, data?: any): Promise<any> {
-    // 等待 Worker 准备就绪
-    await this.workerReady;
-
-    return new Promise((resolve, reject) => {
-      const id = this.messageId++;
-      this.pendingRequests.set(id, { resolve, reject });
-
-      console.log(`[WeiruiKernelWorkerClient] Sending message ${id} of type: ${type}`, data);
-
-      try {
-        this.worker.postMessage({ type, data, id });
-        console.log(`[WeiruiKernelWorkerClient] Message ${id} sent successfully`);
-      } catch (error) {
-        console.error(`[WeiruiKernelWorkerClient] Failed to send message ${id}:`, error);
-        // 从待处理请求中移除
-        this.pendingRequests.delete(id);
-        reject(error);
-      }
-    });
-  }
-
   /**
    * 初始化WeiruiKernel
-   * @param robotPath 机器人模型路径
-   * @param scenePath 场景路径
-   * @param robotAppPath 机器人应用路径
+   * @param robotAppWasm 机器人应用WASM
    */
   public async init(robotAppWasm: ArrayBuffer): Promise<void> {
     console.log(`[WeiruiKernelWorkerClient] Initializing`);

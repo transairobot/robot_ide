@@ -1,41 +1,53 @@
 <template>
-  <div>
+  <div class="relative">
+    <!-- Tree lines -->
+    <div 
+      v-if="level > 0" 
+      class="absolute left-0 top-0 bottom-0 w-px bg-gray-300"
+      :style="{ left: `${(level - 1) * 16 + 8}px` }"
+    ></div>
+    
+    <!-- Horizontal line to item -->
+    <div 
+      v-if="level > 0"
+      class="absolute top-3 w-1 h-px bg-gray-300"
+      :style="{ left: `${(level - 1) * 16 }px` }"
+    ></div>
+
     <div
       :class="[
-        'group flex items-center gap-2 px-2 py-1.5 text-sm rounded cursor-pointer hover:bg-accent/50',
-        { 'bg-accent text-accent-foreground': isSelected }
+        'group flex items-center gap-1 px-1 py-0.5 text-xs cursor-pointer hover:bg-blue-50 relative',
+        { 'bg-blue-100': isSelected }
       ]"
-      :style="{ paddingLeft: `${(level) * 16 + 4}px` }"
+      :style="{ paddingLeft: `${level * 16 + 4}px` }"
       @click="handleClick"
       @contextmenu="handleContextMenu"
     >
-      <!-- Icon Container (includes Expand/Collapse Icon and File/Folder Icon) -->
-      <div class="flex items-center gap-2 flex-1 min-w-0">
-        <!-- Expand/Collapse Icon -->
-        <div v-if="item.type === 'folder'" class="w-4 h-4 flex items-center justify-center flex-shrink-0">
-          <ChevronRight
-            :class="[
-              'w-4 h-4 transition-transform text-muted-foreground',
-              { 'rotate-90': item.expanded }
-            ]"
-          />
-        </div>
-
-        <!-- File Icon-->
-        <div v-if="item.type === 'file'" class="w-5 h-5 flex items-center justify-center flex-shrink-0">
-          <component :is="getFileIcon(item)" class="w-4 h-4" />
-        </div>
-        
-        <!-- File/Folder Name -->
-        <span class="truncate">{{ item.name }}</span>
+      <!-- Expand/Collapse Icon -->
+      <div v-if="item.type === 'folder'" class="w-3 h-3 flex items-center justify-center flex-shrink-0">
+        <ChevronRight
+          :class="[
+            'w-3 h-3 transition-transform text-gray-600',
+            { 'rotate-90': item.expanded }
+          ]"
+        />
       </div>
+      <div v-else class="w-0 h-3 flex-shrink-0"></div>
+
+      <!-- File/Folder Icon -->
+      <div class="w-4 h-4 flex items-center justify-center flex-shrink-0">
+        <component :is="getFileIcon(item)" class="w-3.5 h-3.5" :class="getIconColor(item)" />
+      </div>
+      
+      <!-- File/Folder Name -->
+      <span class="truncate text-gray-700 font-mono text-xs">{{ item.name }}</span>
 
       <!-- Three Dots Menu -->
       <button
         @click.stop="toggleMenu"
-        class="w-5 h-5 flex items-center justify-center hover:bg-accent rounded opacity-0 group-hover:opacity-100 transition-opacity"
+        class="w-4 h-4 flex items-center justify-center hover:bg-gray-200 rounded opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
       >
-        <MoreHorizontal class="w-3.5 h-3.5" />
+        <MoreHorizontal class="w-3 h-3" />
       </button>
     </div>
 
@@ -155,8 +167,56 @@ const getFileIcon = (item: FileItem) => {
     case 'conf':
     case 'ini':
       return Settings
+    case 'ico':
+      return FileImage
+    case 'wasm':
+      return FileCode
+    case 'urdf':
+      return FileText
     default:
       return File
+  }
+}
+
+const getIconColor = (item: FileItem) => {
+  if (item.type === 'folder') {
+    return 'text-yellow-600'
+  }
+
+  const extension = item.name.split('.').pop()?.toLowerCase()
+  
+  switch (extension) {
+    case 'vue':
+      return 'text-green-600'
+    case 'js':
+    case 'ts':
+      return 'text-yellow-600'
+    case 'json':
+      return 'text-yellow-500'
+    case 'xml':
+    case 'urdf':
+      return 'text-orange-600'
+    case 'md':
+      return 'text-blue-600'
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'svg':
+    case 'webp':
+    case 'ico':
+      return 'text-purple-600'
+    case 'wasm':
+      return 'text-purple-700'
+    case 'py':
+      return 'text-blue-500'
+    case 'cpp':
+    case 'c':
+    case 'h':
+    case 'hpp':
+      return 'text-blue-700'
+    default:
+      return 'text-gray-600'
   }
 }
 
