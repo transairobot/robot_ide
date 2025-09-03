@@ -1,3 +1,5 @@
+import { useConsoleStore } from '@/stores/console';
+import { pinia } from '@/main';
 import type { MuJoCoInstance } from '@/mujoco_wasm/MujocoInstance';
 import {
   RunTargetActionReq, RunTargetActionResp, GetActuatorInfoResp, GetActuatorInfoReq,
@@ -249,7 +251,8 @@ export class WeiruiKernelWorkerClient {
     if (type === 'consoleWrite' && id !== undefined) {
       try {
         const req = ConsoleWriteReq.decode(data as Uint8Array);
-        console.log(`[WeiruiKernelWorkerClient] Console output: ${req.message}`);
+        const consoleStore = useConsoleStore(pinia);
+        consoleStore.write(req.message || '');
         this.writeResponseToSAB({ success: true, data: null });
       } catch (err) {
         this.writeResponseToSAB({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
