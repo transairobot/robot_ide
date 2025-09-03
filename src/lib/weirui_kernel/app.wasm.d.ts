@@ -8,6 +8,6 @@ export interface RobotAppExports extends WebAssembly.Exports {
 
     readonly: WebAssembly.Global;
     WEIRUI_CLIENT_LANGUAGE: number;
-    __new_bytes(length: number): number;
+    wasm_new_bytes(length: number): number;
     main(): void;
 }
