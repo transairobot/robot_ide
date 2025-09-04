@@ -6,7 +6,7 @@
       @scroll="onScroll"
     >
       <div class="relative">
-        <slot />
+        <slot></slot>
       </div>
     </div>
   </div>
