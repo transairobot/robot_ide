@@ -244,7 +244,7 @@
     <ScrollArea class="flex-1">
       <div class="p-1.5">
         <FileTreeNode
-          v-for="item in fileTree.getTree()"
+          v-for="item in fileTreeStore.root"
           :key="item.path"
           :item="item"
           :level="0"
@@ -345,7 +345,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import FileTreeNode from './FileTreeNode.vue'
-import { globalFileTree, type FileItem, FileTree } from './FileTree'
+import { useFileTreeStore } from '@/stores/fileTree'
+import type { FileItem } from '@/stores/fileTree'
 import { 
   RefreshCw, 
   FilePlus, 
@@ -366,6 +367,13 @@ import {
   FileCode
 } from 'lucide-vue-next'
 
+interface Props {
+  resetSimulation?: () => void
+  stopSimulation?: () => void
+}
+
+const props = defineProps<Props>()
+
 // Define emits
 const emit = defineEmits<{
   'file-selected': [fileItem: FileItem]
@@ -373,7 +381,7 @@ const emit = defineEmits<{
   'files-loaded': []
 }>()
 
-const fileTree = ref<FileTree>(globalFileTree)
+const fileTreeStore = useFileTreeStore()
 const selectedFile = ref<FileItem | null>(null)
 const robotFile = ref<FileItem | null>(null)
 const robotAppFile = ref<FileItem | null>(null)
@@ -417,80 +425,8 @@ const contextMenuActions = [
   { label: 'Delete', icon: Trash2, action: 'delete' },
 ]
 
-// Create sample files based on known SO101 structure
-const loadDefaultFiles = async () => {
-  const files = [
-        "SO101/scene.xml",
-        "SO101/README.md",
-        "SO101/so101_old_calib.xml",
-        "SO101/assets/motor_holder_so101_base_v1.part",
-        "SO101/assets/rotation_pitch_so101_v1.stl",
-        "SO101/assets/base_so101_v2.stl",
-        "SO101/assets/upper_arm_so101_v1.part",
-        "SO101/assets/upper_arm_so101_v1.stl",
-        "SO101/assets/motor_holder_so101_wrist_v1.stl",
-        "SO101/assets/moving_jaw_so101_v1.part",
-        "SO101/assets/sts3215_03a_no_horn_v1.part",
-        "SO101/assets/wrist_roll_pitch_so101_v2.part",
-        "SO101/assets/sts3215_03a_v1.part",
-        "SO101/assets/under_arm_so101_v1.stl",
-        "SO101/assets/sts3215_03a_v1.stl",
-        "SO101/assets/wrist_roll_follower_so101_v1.part",
-        "SO101/assets/sts3215_03a_no_horn_v1.stl",
-        "SO101/assets/motor_holder_so101_wrist_v1.part",
-        "SO101/assets/base_motor_holder_so101_v1.stl",
-        "SO101/assets/motor_holder_so101_base_v1.stl",
-        "SO101/assets/base_motor_holder_so101_v1.part",
-        "SO101/assets/rotation_pitch_so101_v1.part",
-        "SO101/assets/wrist_roll_follower_so101_v1.stl",
-        "SO101/assets/base_so101_v2.part",
-        "SO101/assets/wrist_roll_pitch_so101_v2.stl",
-        "SO101/assets/waveshare_mounting_plate_so101_v2.stl",
-        "SO101/assets/waveshare_mounting_plate_so101_v2.part",
-        "SO101/assets/moving_jaw_so101_v1.stl",
-        "SO101/assets/under_arm_so101_v1.part",
-        "SO101/so101_new_calib.urdf",
-        "SO101/joints_properties.xml",
-        "SO101/so101_new_calib.xml",
-        "SO101/so101_old_cbase_so101_v2alib.urdf",
-        "humanoid.xml",
-        "just_run_human.wasm",
-  ]
-    
-  // Load each known file
-  for (const filepath of files) {
-    try {
-      const response = await fetch(`/${filepath}`)
-      const substrs = filepath.split("/")
-      const fileName = substrs[substrs.length - 1]
-      if (response.ok) {
-        const content = await response.arrayBuffer()
-        const fileItem: FileItem = {
-          name: fileName,
-          path: filepath,
-          type: 'file',
-          size: content.byteLength,
-          modified: new Date(),
-          content: content
-        }
-        
-        // Add file to tree
-        fileTree.value.addItem(fileItem)
-        
-        // console.log(`Loaded: ${fileName} (${formatFileSize(content.byteLength)})`)
-      }
-    } catch (error) {
-      console.warn(`Failed to load ${filepath}:`, error)
-    }
-  }
-  
-  console.log('Loaded default files')
-  emit('files-loaded')
-}
-
 const refreshFiles = async () => {
-  await loadDefaultFiles()
-  console.log('Files refreshed from public/SO101')
+  console.log('Files refreshed')
 }
 
 const createNewFile = async () => {
@@ -511,7 +447,7 @@ const createNewFile = async () => {
     content: emptyContent
   }
   
-  fileTree.value.addItem(newFile)
+  fileTreeStore.addItem(newFile)
   console.log('Created new file:', filePath)
 }
 
@@ -530,7 +466,7 @@ const createNewFolder = async () => {
     expanded: false
   }
   
-  fileTree.value.addItem(newFolder)
+  fileTreeStore.addItem(newFolder)
   console.log('Created new folder:', folderPath)
 }
 
@@ -634,7 +570,7 @@ const uploadSingleFile = async (file: File, isFolder: boolean): Promise<void> =>
 
 // Helper function to add file to the local file tree
 const addFileToTree = (fileItem: FileItem, relativePath?: string) => {
-  fileTree.value.addItem(fileItem)
+  fileTreeStore.addItem(fileItem)
 }
 
 // Helper function to read file content as binary
@@ -710,11 +646,17 @@ const startSimulation = () => {
 const stopSimulation = () => {
   simulationRunning.value = false
   console.log('Stopping simulation')
+  if (props.stopSimulation) {
+    props.stopSimulation()
+  }
 }
 
 const resetSimulation = () => {
   simulationRunning.value = false
   console.log('Resetting simulation')
+  if (props.resetSimulation) {
+    props.resetSimulation()
+  }
   // Restart simulation if needed
   if (robotFile.value) {
     simulationRunning.value = true
@@ -725,7 +667,7 @@ const resetSimulation = () => {
 
 const showRobotSelector = () => {
   // Find all .xml files in the file tree
-  const allFiles = fileTree.value.getFlatFileList()
+  const allFiles = fileTreeStore.getFlatFileList()
   robotFiles.value = allFiles.filter(file => 
     file.type === 'file' && 
     file.name.endsWith('.xml')
@@ -745,7 +687,7 @@ const selectRobot = (robot: FileItem) => {
 
 const showRobotAppSelector = () => {
   // Find all .wasm files in the file tree
-  const allFiles = fileTree.value.getFlatFileList()
+  const allFiles = fileTreeStore.getFlatFileList()
   robotAppFiles.value = allFiles.filter(file => 
     file.type === 'file' && 
     file.name.endsWith('.wasm')
@@ -785,7 +727,7 @@ const selectFile = async (item: FileItem) => {
   console.log('Selected file:', item.path)
   
   // Select file in FileTree
-  fileTree.value.selectFile(item.path)
+  fileTreeStore.selectFile(item.path)
   
   // Emit file selection event to parent
   emit('file-selected', item)
@@ -797,7 +739,7 @@ const selectFile = async (item: FileItem) => {
 }
 
 const toggleFolder = (item: FileItem) => {
-  fileTree.value.toggleFolder(item.path)
+  fileTreeStore.toggleFolder(item.path)
 }
 
 const showContextMenu = (event: MouseEvent, item: FileItem) => {
@@ -838,7 +780,9 @@ const executeAction = async (action: string) => {
       const newName = prompt('Enter new name:', item.name)
       if (newName && newName !== item.name) {
         const oldPath = item.path
-        fileTree.value.renameItem(oldPath, newName)
+        // Update item directly since we're using reactive store
+        item.name = newName
+        item.path = item.path.replace(item.name, newName)
         console.log('Renamed:', oldPath, 'to', newName)
       }
       break
@@ -874,7 +818,19 @@ const executeAction = async (action: string) => {
 
 // Helper function to remove file from tree
 const removeFileFromTree = (itemToRemove: FileItem) => {
-  fileTree.value.removeItem(itemToRemove.path)
+  // Remove from store by finding and removing from parent
+  const parentPath = itemToRemove.path.substring(0, itemToRemove.path.lastIndexOf('/'))
+  if (!parentPath) {
+    // Remove from root
+    const index = fileTreeStore.root.findIndex(item => item.path === itemToRemove.path)
+    if (index > -1) fileTreeStore.root.splice(index, 1)
+  } else {
+    const parent = fileTreeStore.findItemByPath(parentPath)
+    if (parent && parent.children) {
+      const index = parent.children.findIndex(item => item.path === itemToRemove.path)
+      if (index > -1) parent.children.splice(index, 1)
+    }
+  }
 }
 
 const hideContextMenu = () => {
@@ -883,11 +839,10 @@ const hideContextMenu = () => {
 
 // 暴露文件树给父组件
 defineExpose({
-  getFileTree: () => fileTree.value.getTree()
+  getFileTree: () => fileTreeStore.root
 })
 
 onMounted(() => {
-  loadDefaultFiles() // Load default files from public/SO101
   document.addEventListener('click', hideContextMenu)
 })
 

@@ -134,6 +134,13 @@ export class MuJoCoInstance {
     }
 
     /**
+     * Reset simulation data
+     */
+    reset(): void {
+        this.simulation.resetData();
+    }
+
+    /**
      * 设置执行器（关节）的控制值
      * @param actuatorIndex - 执行器的索引 (0 到 model.nu - 1)
      * @param value - 要设置的控制值
@@ -426,8 +433,11 @@ export class MuJoCoInstance {
                 reflectivity: this.model.geom_matid[g] != -1 ? this.model.mat_reflectance[this.model.geom_matid[g]] : undefined,
                 roughness: this.model.geom_matid[g] != -1 ? 1.0 - this.model.mat_shininess[this.model.geom_matid[g]] : undefined,
                 metalness: this.model.geom_matid[g] != -1 ? 0.1 : undefined,
-                map: texture,
             });
+
+            if (texture) {
+                material.map = texture;
+            }
 
             const mesh = new THREE.Mesh(geometry, material);
             mesh.castShadow = g == 0 ? false : true;
@@ -544,7 +554,6 @@ export class MuJoCoInstance {
 
     updateLights(renderableData: { lights: THREE.Light[]; }) {
         const { lights } = renderableData;
-        console.log('更新灯光位置和方向，总灯光数量:', lights);
         let tmpVec = new THREE.Vector3();
         // Update light transforms.
         for (let l = 0; l < this.model.nlight; l++) {

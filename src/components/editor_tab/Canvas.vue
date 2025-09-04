@@ -100,7 +100,7 @@ import {
 } from 'lucide-vue-next'
 import { MuJoCoInstance, ActuatorInfo } from '@/mujoco_wasm/MujocoInstance';
 import { WeiruiKernelWorkerClient } from '@/lib/weirui_kernel/worker_client';
-import { globalFileTree } from '../sidebar/FileTree';
+import { useFileTreeStore } from '@/stores/fileTree';
 import { WebGPURenderer } from 'three/webgpu';
 
 interface Props {
@@ -111,6 +111,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const fileTreeStore = useFileTreeStore()
 
 const rendererContainerRef = ref<HTMLDivElement | null>(null);
 const isModelLoaded = ref(false);
@@ -129,18 +130,19 @@ let simulationInterval: number | null = null;
 const scene = new THREE.Scene();
 let camera: THREE.PerspectiveCamera;
 // 创建渲染器
-// const renderer = new THREE.WebGLRenderer({
-//   antialias: true,
-//   alpha: true,
-//   powerPreference: "high-performance"
-// });
-
-// 创建 WebGPU 渲染器
-const renderer = new WebGPURenderer({
+const renderer = new THREE.WebGLRenderer({
   antialias: true,
   alpha: true,
   powerPreference: "high-performance"
 });
+
+// 创建 WebGPU 渲染器
+// const renderer = new WebGPURenderer({
+//   antialias: true,
+//   alpha: true,
+//   powerPreference: "high-performance"
+// });
+// await renderer.init()
 
 // 设置像素比例以避免模糊
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -231,9 +233,22 @@ const resetCamera = () => {
   }
 };
 
+const reset = () => {
+  if (mujocoInstanceRef.value) {
+    mujocoInstanceRef.value.reset()
+    console.log('Simulation reset')
+  }
+}
+
+const stop = () => {
+  stopSimulation()
+}
+
 // Expose resize method for parent component to call
 defineExpose({
-  resize: resizeRenderer
+  resize: resizeRenderer,
+  reset,
+  stop
 });
 
 // Animation loop
@@ -333,7 +348,7 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
     scene.add(ambientLight);
 
     isModelLoaded.value = true;
-    let robotAppWasm = globalFileTree.findItemByPath(robotAppPath || '')?.content;
+    let robotAppWasm = fileTreeStore.findItemByPath(robotAppPath || '')?.content;
     if (robotAppWasm) {
       const client = new WeiruiKernelWorkerClient(instance);
       client.init(robotAppWasm!)

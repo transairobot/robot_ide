@@ -1,13 +1,13 @@
 <template>
   <div class="h-full bg-card border-r border-border flex">
     <!-- Tabs -->
-    <div class="flex flex-col border-r border-border w-16">
+    <div class="flex flex-col border-r border-border w-12">
       <button
         v-for="tab in tabs"
         :key="tab.id"
         @click="handleTabClick(tab.id)"
         :class="[
-          'px-3 py-4 text-xs font-medium transition-colors flex flex-col items-center',
+          'px-3 py-3 text-xs font-medium transition-colors flex flex-col items-center',
           activeTab === tab.id
             ? 'bg-background text-foreground border-l-2 border-primary'
             : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -27,6 +27,8 @@
           @simulation="(fileItem, robotAppFile, sceneFile) => emit('simulation', fileItem, robotAppFile, sceneFile)"
           @files-loaded="emit('files-loaded')"
           ref="explorerTabRef"
+          :reset-simulation="props.resetSimulation"
+          :stop-simulation="props.stopSimulation"
         />
       </keep-alive>
       
@@ -76,6 +78,13 @@ import ExplorerTab from './ExplorerTab.vue'
 import RobotTab from './RobotTab.vue'
 
 // Define emits
+interface Props {
+  resetSimulation?: () => void
+  stopSimulation?: () => void
+}
+
+const props = defineProps<Props>()
+
 const emit = defineEmits<{
   'content-collapsed': [collapsed: boolean]
   'file-selected': [fileItem: any]
