@@ -245,6 +245,7 @@ const animate = () => {
   if (mujocoInstanceRef.value && mujocoRenderableData) {
     // Update the Three.js representation
     mujocoInstanceRef.value.updateThreeJSBodies(mujocoRenderableData);
+    mujocoInstanceRef.value.updateLights(mujocoRenderableData);
   }
 
   // Update controls
@@ -318,6 +319,10 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
 
     // Add the root object to the scene
     scene.add(mujocoRenderableData.mujocoRoot);
+    
+    let ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+    ambientLight.name = 'AmbientLight';
+    scene.add(ambientLight);
 
     isModelLoaded.value = true;
     let robotAppWasm = globalFileTree.findItemByPath(robotAppPath || '')?.content;

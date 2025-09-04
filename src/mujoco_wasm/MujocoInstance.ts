@@ -384,7 +384,10 @@ export class MuJoCoInstance {
                 this.model.geom_rgba[(g * 4) + 3]
             ];
 
-            if (this.model.geom_matid[g] != -1) {
+            let texture: THREE.Texture | undefined = undefined;
+
+            // 检查是否有材质ID
+            if (this.model.geom_matid[g] !== -1) {
                 const matId = this.model.geom_matid[g];
                 color = [
                     this.model.mat_rgba[(matId * 4) + 0],
@@ -392,8 +395,29 @@ export class MuJoCoInstance {
                     this.model.mat_rgba[(matId * 4) + 2],
                     this.model.mat_rgba[(matId * 4) + 3]
                 ];
+
+                // 检查是否有纹理
+                const texId = this.model.mat_texid[matId];
+                if (texId !== -1) {
+                    const width = this.model.tex_width[texId];
+                    const height = this.model.tex_height[texId];
+                    const offset = this.model.tex_adr[texId];
+                    const rgbArray = this.model.tex_rgb;
+
+                    const rgbaArray = new Uint8Array(width * height * 4);
+                    for (let p = 0; p < width * height; p++) {
+                        rgbaArray[(p * 4) + 0] = rgbArray[offset + ((p * 3) + 0)];
+                        rgbaArray[(p * 4) + 1] = rgbArray[offset + ((p * 3) + 1)];
+                        rgbaArray[(p * 4) + 2] = rgbArray[offset + ((p * 3) + 2)];
+                        rgbaArray[(p * 4) + 3] = 255;
+                    }
+
+                    texture = new THREE.DataTexture(rgbaArray, width, height, THREE.RGBAFormat);
+                    texture.needsUpdate = true;
+                }
             }
 
+            // 创建材质
             material = new THREE.MeshPhysicalMaterial({
                 color: new THREE.Color(color[0], color[1], color[2]),
                 transparent: color[3] < 1.0,
@@ -401,7 +425,8 @@ export class MuJoCoInstance {
                 specularIntensity: this.model.geom_matid[g] != -1 ? this.model.mat_specular[this.model.geom_matid[g]] * 0.5 : undefined,
                 reflectivity: this.model.geom_matid[g] != -1 ? this.model.mat_reflectance[this.model.geom_matid[g]] : undefined,
                 roughness: this.model.geom_matid[g] != -1 ? 1.0 - this.model.mat_shininess[this.model.geom_matid[g]] : undefined,
-                metalness: this.model.geom_matid[g] != -1 ? 0.1 : undefined
+                metalness: this.model.geom_matid[g] != -1 ? 0.1 : undefined,
+                map: texture,
             });
 
             const mesh = new THREE.Mesh(geometry, material);
@@ -420,9 +445,10 @@ export class MuJoCoInstance {
             }
         }
 
-        // 解析灯光
+
+        // Parse lights.
         for (let l = 0; l < this.model.nlight; l++) {
-            let light;
+            let light = new THREE.SpotLight();
             if (this.model.light_directional[l]) {
                 light = new THREE.DirectionalLight();
             } else {
@@ -430,13 +456,13 @@ export class MuJoCoInstance {
             }
             light.decay = this.model.light_attenuation[l] * 100;
             light.penumbra = 0.5;
-            light.castShadow = true;
+            light.castShadow = true; // default false
 
-            light.shadow.mapSize.width = 1024;
-            light.shadow.mapSize.height = 1024;
-            light.shadow.camera.near = 1;
-            light.shadow.camera.far = 10;
-
+            light.shadow.mapSize.width = 1024; // default
+            light.shadow.mapSize.height = 1024; // default
+            light.shadow.camera.near = 1; // default
+            light.shadow.camera.far = 10; // default
+            //bodies[model.light_bodyid()].add(light);
             if (bodies[0]) {
                 bodies[0].add(light);
             } else {
@@ -512,6 +538,20 @@ export class MuJoCoInstance {
                 // 获取body的位置和旋转
                 this.getPosition(this.simulation.xpos, b, bodies[b].position);
                 this.getQuaternion(this.simulation.xquat, b, bodies[b].quaternion);
+            }
+        }
+    }
+
+    updateLights(renderableData: { lights: THREE.Light[]; }) {
+        const { lights } = renderableData;
+        console.log('更新灯光位置和方向，总灯光数量:', lights);
+        let tmpVec = new THREE.Vector3();
+        // Update light transforms.
+        for (let l = 0; l < this.model.nlight; l++) {
+            if (lights[l]) {
+                this.getPosition(this.simulation.light_xpos, l, lights[l].position);
+                this.getPosition(this.simulation.light_xdir, l, tmpVec);
+                lights[l].lookAt(tmpVec.add(lights[l].position));
             }
         }
     }
