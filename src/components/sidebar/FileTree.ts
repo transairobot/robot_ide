@@ -13,7 +13,7 @@ export class FileTree {
   private root: FileItem[] = []
   private selectedFile: FileItem | null = null
 
-  constructor() {}
+  constructor() { }
 
   // Sort items: folders first, then alphabetically
   private sortItems(items: FileItem[]): FileItem[] {
@@ -55,11 +55,28 @@ export class FileTree {
   }
 
   // Add a new item to the tree
-  addItem(item: FileItem, parentPath?: string): void {
+  addItem(item: FileItem): void {
+    if (this.findItemByPath(item.path)) {
+      console.warn("Item already exists at path:", item.path);
+      return;
+    }
+    let parentPath = item.path.substring(0, item.path.lastIndexOf('/'))
     if (!parentPath) {
       this.root.push(item)
       this.root = this.sortItems(this.root)
       return
+    }
+
+    console.log(`name=${item.name} path=${item.path} parentPath=${parentPath}`);
+    {
+      const parent = this.findItemByPath(parentPath)
+      if (parent && parent.type === 'file') {
+        throw new Error(`parent path is a file:, ${parentPath}`)
+      }
+      if (!parent) {
+        console.log("creating folder structure for", parentPath);
+        this.createFolderStructure(parentPath);
+      }
     }
 
     const parent = this.findItemByPath(parentPath)
@@ -109,7 +126,7 @@ export class FileTree {
     const oldName = item.name
     item.name = newName
     item.path = item.path.replace(oldName, newName)
-    
+
     // Update paths for children if it's a folder
     if (item.type === 'folder' && item.children) {
       const updateChildrenPaths = (children: FileItem[]) => {
@@ -122,7 +139,7 @@ export class FileTree {
       }
       updateChildrenPaths(item.children)
     }
-    
+
     // Re-sort the parent collection
     if (item.path.includes('/')) {
       // Item is in a subfolder
@@ -135,7 +152,7 @@ export class FileTree {
       // Item is in root
       this.root = this.sortItems(this.root)
     }
-    
+
     return true
   }
 
@@ -168,12 +185,16 @@ export class FileTree {
   createFolderStructure(path: string): void {
     const parts = path.split('/')
     let currentPath = ''
-    
+    let parentFolder = this.root
+
     for (let i = 0; i < parts.length; i++) {
       currentPath += (i > 0 ? '/' : '') + parts[i]
-      
-      // Check if folder already exists
-      if (!this.findItemByPath(currentPath)) {
+
+      // Check if folder already exists 
+      console.log("Checking for folder:", parts[i], "at", currentPath);
+      let currentFile = this.findItemByPath(currentPath)
+      if (!currentFile) {
+        console.log("Creating folder:", parts[i], "at", currentPath);
         const folder: FileItem = {
           name: parts[i],
           path: currentPath,
@@ -182,42 +203,19 @@ export class FileTree {
           children: [],
           expanded: false
         }
-        this.addItem(folder, i > 0 ? parts.slice(0, i).join('/') : undefined)
+        parentFolder.push(folder)
+        this.sortItems(parentFolder)
+        parentFolder = folder.children!
+      } else {
+        parentFolder = currentFile.children!
       }
     }
-  }
-
-  // Add file to specific path
-  addFileToPath(file: FileItem, relativePath?: string): void {
-    if (!relativePath) {
-      this.root.push(file)
-      this.root = this.sortItems(this.root)
-      return
-    }
-
-    // Handle folder structure
-    const pathParts = relativePath.split('/')
-    pathParts.pop() // Remove filename
-
-    if (pathParts.length === 0) {
-      // File is in root
-      this.root.push(file)
-      this.root = this.sortItems(this.root)
-      return
-    }
-
-    // Create folder structure if needed
-    const folderPath = pathParts.join('/')
-    this.createFolderStructure(folderPath)
-
-    // Add file to the folder
-    this.addItem(file, folderPath)
   }
 
   // Get a flat list of all files
   getFlatFileList(): FileItem[] {
     const files: FileItem[] = []
-    
+
     const traverse = (items: FileItem[]) => {
       for (const item of items) {
         if (item.type === 'file') {
@@ -227,7 +225,7 @@ export class FileTree {
         }
       }
     }
-    
+
     traverse(this.root)
     return files
   }

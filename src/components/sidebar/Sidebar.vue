@@ -30,6 +30,11 @@
         />
       </keep-alive>
       
+      <!-- Robots Tab -->
+      <keep-alive>
+        <RobotTab v-show="activeTab === 'robots'" />
+      </keep-alive>
+
       <!-- Robot Apps Tab -->
       <keep-alive>
         <AppsTab v-show="activeTab === 'apps'" />
@@ -60,13 +65,15 @@ import {
   Layers, 
   Archive, 
   MessageSquare,
-  FolderOpen
+  FolderOpen,
+  Bot
 } from 'lucide-vue-next'
 import AppsTab from './AppsTab.vue'
 import ScenesTab from './ScenesTab.vue'
 import AssetsTab from './AssetsTab.vue'
 import ChatTab from './ChatTab.vue'
 import ExplorerTab from './ExplorerTab.vue'
+import RobotTab from './RobotTab.vue'
 
 // Define emits
 const emit = defineEmits<{
@@ -82,6 +89,7 @@ const explorerTabRef = ref<InstanceType<typeof ExplorerTab> | null>(null)
 
 const tabs = [
   { id: 'explorer', label: 'Explorer', icon: FolderOpen },
+  { id: 'robots', label: 'Robots', icon: Bot },
   { id: 'apps', label: 'Apps', icon: Package },
   { id: 'scenes', label: 'Scenes', icon: Layers },
   { id: 'assets', label: 'Assets', icon: Archive },
