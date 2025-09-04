@@ -32,48 +32,22 @@ import Input from '@/components/ui/Input.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import { Plus } from 'lucide-vue-next'
 import { fetchRobots, searchRobots, type Robot, fetchRobotUrl } from '@/services'
-import { globalFileTree, type FileItem } from './FileTree'
-import { strFromU8, unzipSync } from 'fflate'
+import { useFileTreeStore } from '@/stores/fileTree'
+import { useNotificationStore } from '@/stores/notification'
 const robots = ref<Robot[]>([])
 const searchQuery = ref('')
+const fileTreeStore = useFileTreeStore()
+const notificationStore = useNotificationStore()
 
 const handleSearch = async () => {
   robots.value = await searchRobots(searchQuery.value)
 }
 
-/** 把 File 对象解包成 Map<文件名, 字符串> */
-function unzipFile(buffer: ArrayBuffer): Map<string, Uint8Array> {
-  // 1. 解压：返回 { 路径: Uint8Array }
-  const decompressed = unzipSync(new Uint8Array(buffer));
-  const map = new Map<string, Uint8Array>();
-  for (const [path, data] of Object.entries(decompressed)) {
-    if (data.byteLength) {          // 跳过目录
-      map.set(path, data); // 自动 UTF-8 解码
-    }
-  }
-  return map;
-}
-
-
 const addRobotToWorkspace = async (robot: Robot) => {
   try {
     const fileContent = await fetchRobotUrl(robot)
-
-    unzipFile(fileContent).forEach((content, path) => {
-      let name = path.split('/').pop() || 'unknown'
-      let content_buffer = new Uint8Array(content.length)
-      content_buffer.set(content)
-      const newFile: FileItem = {
-        name: name,
-        path: path,
-        type: 'file',
-        size: content_buffer.length,
-        modified: new Date(),
-        content: content_buffer.buffer,
-      }
-      globalFileTree.addItem(newFile)
-    })
-
+    fileTreeStore.AddRobot(fileContent)
+    notificationStore.showSuccess(`Robot "${robot.name}" added successfully!`)
   } catch (error) {
     console.error(`Failed to add robot ${robot.name} to workspace:`, error)
   }

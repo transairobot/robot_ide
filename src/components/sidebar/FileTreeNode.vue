@@ -68,6 +68,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useFileTreeStore } from '@/stores/fileTree'
+import type { FileItem } from '@/stores/fileTree'
 import { 
   ChevronRight,
   Folder,
@@ -84,23 +86,13 @@ import {
   FileJson
 } from 'lucide-vue-next'
 
-interface FileItem {
-  name: string
-  path: string
-  type: 'file' | 'folder'
-  size?: number
-  modified?: Date
-  content?: ArrayBuffer // Binary content for all files
-  children?: FileItem[]
-  expanded?: boolean
-}
-
 interface Props {
   item: FileItem
   level: number
 }
 
 const props = defineProps<Props>()
+const fileTreeStore = useFileTreeStore()
 
 const emit = defineEmits<{
   select: [item: FileItem]
@@ -109,8 +101,7 @@ const emit = defineEmits<{
 }>()
 
 const isSelected = computed(() => {
-  // This would be managed by parent component in a real app
-  return false
+  return fileTreeStore.selectedFile?.path === props.item.path
 })
 
 const toggleMenu = (event: MouseEvent) => {

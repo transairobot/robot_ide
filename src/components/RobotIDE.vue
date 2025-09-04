@@ -14,7 +14,8 @@
       ]" ref="sidebarContainerRef">
         <div class="flex-1 overflow-auto">
           <Sidebar @content-collapsed="handleSidebarContentCollapse" @file-selected="handleFileSelected"
-            @simulation="handleSimulation" @files-loaded="syncFilesToMuJoCoFS" ref="sidebarRef" />
+            @simulation="handleSimulation" @files-loaded="syncFilesToMuJoCoFS" ref="sidebarRef" 
+            :reset-simulation="resetSimulation" :stop-simulation="stopSimulation" />
         </div>
         <!-- Resize Handle (only show when content is not collapsed) -->
         <div v-if="!sidebarContentCollapsed"
@@ -136,7 +137,7 @@ import TextEditor from './editor_tab/TextEditor.vue'
 import ThreeDViewer from './editor_tab/3DViewer.vue'
 import { Terminal, X, Plus, Box, FileText, FileCode, Image, Video, Archive, Package } from 'lucide-vue-next'
 import { writeFilesToMuJoCoFS } from '@/mujoco_wasm/MujocoInstance'
-import type { FileItem } from "./sidebar/FileTree"
+import type { FileItem } from "@/stores/fileTree"
 
 const sidebarContentCollapsed = ref(false)
 const consoleHeight = ref(200)
@@ -388,6 +389,24 @@ const handleFileSelected = (fileItem: any) => {
     editorTabs.value.push(newTab)
     activeEditorTab.value = newId
   }
+}
+
+const resetSimulation = () => {
+  // Reset all active canvas instances
+  canvasRefs.value.forEach(canvasRef => {
+    if (canvasRef && canvasRef.reset) {
+      canvasRef.reset()
+    }
+  })
+}
+
+const stopSimulation = () => {
+  // Stop all active canvas instances
+  canvasRefs.value.forEach(canvasRef => {
+    if (canvasRef && canvasRef.stop) {
+      canvasRef.stop()
+    }
+  })
 }
 
 /**
