@@ -55,16 +55,7 @@ import { ref, onMounted } from 'vue'
 import Button from '@/components/ui/Button.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import { Plus, Eye, EyeOff } from 'lucide-vue-next'
-
-// Define the Scene interface
-interface Scene {
-  id: string
-  name: string
-  description: string
-  img: string // URL to the image
-  mjcf_xml: string // Path to the MJCF XML file
-  visible?: boolean
-}
+import { fetchScenes, type Scene } from '@/services'
 
 // Modify scenes to fetch from API
 const scenes = ref<Scene[]>([])
@@ -92,33 +83,9 @@ const handleImageError = (event: Event) => {
   // target.parentElement.style.display = 'none';
 };
 
-// Fetch scenes from the backend API
-const fetchScenes = async () => {
-  try {
-    // TODO: Replace with the actual backend API URL
-    const response = await fetch('/api/scenes');
-    if (!response.ok) {
-      throw new Error(`Failed to fetch scenes: ${response.status} ${response.statusText}`);
-    }
-    const data = await response.json();
-    scenes.value = data.map((scene: any) => ({
-      ...scene,
-      visible: scene.visible ?? true // Default to true if not specified
-    }));
-  } catch (error) {
-    console.error("Error fetching scenes:", error);
-    // Fallback to some default scenes if API call fails
-    scenes.value = [
-      { id: "1", name: "Warehouse", description: "Industrial warehouse environment", img: "/images/warehouse.jpg", mjcf_xml: "/models/warehouse.xml", visible: true },
-      { id: "2", name: "Office", description: "Modern office space", img: "/images/office.jpg", mjcf_xml: "/models/office.xml", visible: false },
-      { id: "3", name: "Factory Floor", description: "Manufacturing floor simulation", img: "/images/factory.jpg", mjcf_xml: "/models/factory.xml", visible: true },
-    ];
-  }
-};
-
 // Call fetchScenes when the component is mounted
-onMounted(() => {
-  fetchScenes();
+onMounted(async () => {
+  scenes.value = await fetchScenes();
 });
 
 const toggleSceneVisibility = (scene: Scene) => {

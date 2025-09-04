@@ -475,7 +475,7 @@ const loadDefaultFiles = async () => {
         }
         
         // Add file to tree
-        fileTree.value.addFileToPath(fileItem, filepath)
+        fileTree.value.addItem(fileItem)
         
         // console.log(`Loaded: ${fileName} (${formatFileSize(content.byteLength)})`)
       }
@@ -634,7 +634,7 @@ const uploadSingleFile = async (file: File, isFolder: boolean): Promise<void> =>
 
 // Helper function to add file to the local file tree
 const addFileToTree = (fileItem: FileItem, relativePath?: string) => {
-  fileTree.value.addFileToPath(fileItem, relativePath)
+  fileTree.value.addItem(fileItem)
 }
 
 // Helper function to read file content as binary
