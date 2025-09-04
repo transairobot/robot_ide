@@ -101,6 +101,7 @@ import {
 import { MuJoCoInstance, ActuatorInfo } from '@/mujoco_wasm/MujocoInstance';
 import { WeiruiKernelWorkerClient } from '@/lib/weirui_kernel/worker_client';
 import { globalFileTree } from '../sidebar/FileTree';
+import { WebGPURenderer } from 'three/webgpu';
 
 interface Props {
   filePath?: string
@@ -128,7 +129,14 @@ let simulationInterval: number | null = null;
 const scene = new THREE.Scene();
 let camera: THREE.PerspectiveCamera;
 // 创建渲染器
-const renderer = new THREE.WebGLRenderer({
+// const renderer = new THREE.WebGLRenderer({
+//   antialias: true,
+//   alpha: true,
+//   powerPreference: "high-performance"
+// });
+
+// 创建 WebGPU 渲染器
+const renderer = new WebGPURenderer({
   antialias: true,
   alpha: true,
   powerPreference: "high-performance"
@@ -319,7 +327,7 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
 
     // Add the root object to the scene
     scene.add(mujocoRenderableData.mujocoRoot);
-    
+
     let ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
     ambientLight.name = 'AmbientLight';
     scene.add(ambientLight);
