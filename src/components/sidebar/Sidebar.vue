@@ -6,8 +6,10 @@
         v-for="tab in tabs"
         :key="tab.id"
         @click="handleTabClick(tab.id)"
+        @mouseenter="showTooltip(tab.label, $event)"
+        @mouseleave="hideTooltip"
         :class="[
-          'px-3 py-3 text-xs font-medium transition-colors flex flex-col items-center',
+          'px-3 py-3 text-xs font-medium transition-colors flex flex-col items-center relative',
           activeTab === tab.id
             ? 'bg-background text-foreground border-l-2 border-primary'
             : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -15,6 +17,15 @@
       >
         <component :is="tab.icon" class="w-5 h-5" />
       </button>
+    </div>
+
+    <!-- Tooltip -->
+    <div
+      v-if="tooltip.show"
+      :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
+      class="fixed z-50 bg-gray-900 text-white text-xs px-2 py-1 rounded shadow-lg pointer-events-none"
+    >
+      {{ tooltip.text }}
     </div>
 
     <!-- Tab Content -->
@@ -95,6 +106,27 @@ const emit = defineEmits<{
 const activeTab = ref('explorer')
 const isCollapsed = ref(false)
 const explorerTabRef = ref<InstanceType<typeof ExplorerTab> | null>(null)
+
+const tooltip = ref({
+  show: false,
+  text: '',
+  x: 0,
+  y: 0
+})
+
+const showTooltip = (text: string, event: MouseEvent) => {
+  const rect = (event.target as HTMLElement).getBoundingClientRect()
+  tooltip.value = {
+    show: true,
+    text,
+    x: rect.right + 8,
+    y: rect.top + rect.height / 2 - 12
+  }
+}
+
+const hideTooltip = () => {
+  tooltip.value.show = false
+}
 
 const tabs = [
   { id: 'explorer', label: 'Explorer', icon: FolderOpen },
