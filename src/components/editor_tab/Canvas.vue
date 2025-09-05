@@ -89,7 +89,7 @@ import { ref, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
-import Button from '@/components/ui/Button.vue'
+import { Button } from '@/components/ui/button'
 import {
   ZoomIn,
   ZoomOut,

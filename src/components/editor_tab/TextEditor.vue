@@ -49,7 +49,7 @@ import 'prismjs/components/prism-json'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-markup'
 import 'prismjs/themes/prism.css'
-import Button from '@/components/ui/Button.vue'
+import {Button} from '@/components/ui/button'
 
 interface Props {
   content?: string

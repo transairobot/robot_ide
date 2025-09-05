@@ -27,7 +27,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import Button from '@/components/ui/Button.vue'
+import { Button } from '@/components/ui/button'
 import Input from '@/components/ui/Input.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import { Plus } from 'lucide-vue-next'

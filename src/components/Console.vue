@@ -36,7 +36,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useResizeObserver } from '@vueuse/core'
-import Button from '@/components/ui/Button.vue'
+import { Button } from '@/components/ui/button'
 import { Terminal as TerminalIcon, X, Trash2 } from 'lucide-vue-next'
 import { Terminal } from 'xterm'
 import { FitAddon } from '@xterm/addon-fit'

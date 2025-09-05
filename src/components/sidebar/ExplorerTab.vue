@@ -42,7 +42,7 @@
           <div class="flex gap-0.5">
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               class="h-4 w-4 p-0"
               @click="showRobotSelector"
               title="Select Robot"
@@ -78,7 +78,7 @@
           <div class="flex gap-0.5">
             <Button
               size="sm"
-              variant="ghost"
+              variant="secondary"
               class="h-4 w-4 p-0"
               @click="showRobotAppSelector"
               title="Select Robot App"
@@ -157,7 +157,7 @@
             <h3 class="text-sm font-medium">Select Robot App</h3>
             <Button
               size="sm"
-              variant="ghost"
+              variant="default"
               class="h-5 w-5 p-0"
               @click="closeRobotAppSelector"
             >
@@ -342,7 +342,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import Button from '@/components/ui/Button.vue'
+import { Button } from '@/components/ui/button'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import FileTreeNode from './FileTreeNode.vue'
 import { useFileTreeStore } from '@/stores/fileTree'
