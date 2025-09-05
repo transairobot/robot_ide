@@ -55,7 +55,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import Button from '@/components/ui/Button.vue'
+import { Button } from '@/components/ui/button'
 import {
   Menu,
   Play,

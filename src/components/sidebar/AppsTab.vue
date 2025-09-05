@@ -60,7 +60,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import Button from '@/components/ui/Button.vue'
+import {Button} from '@/components/ui/button'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import { Plus, Download, Trash2 } from 'lucide-vue-next'
 

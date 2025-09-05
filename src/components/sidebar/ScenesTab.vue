@@ -52,7 +52,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import Button from '@/components/ui/Button.vue'
+import {Button} from '@/components/ui/button'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import { Plus, Eye, EyeOff } from 'lucide-vue-next'
 import { fetchScenes, type Scene } from '@/services'
