@@ -29,7 +29,7 @@
     </ScrollArea>
     <div class="p-3 border-t border-border">
       <div class="flex gap-2">
-        <Input v-model="userInput" placeholder="Type a message..." class="flex-1 h-8 text-sm"
+        <Textarea v-model="userInput" placeholder="Type a message..." class="flex-1 text-sm"
           @keyup.enter="handleSendMessage" />
         <Button size="sm" class="h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white" @click="handleSendMessage">
           Send
@@ -42,7 +42,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import { Button } from '@/components/ui/button'
-import Input from '@/components/ui/Input.vue'
+import { Textarea } from '@/components/ui/textarea'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 
 interface ChatMessage {

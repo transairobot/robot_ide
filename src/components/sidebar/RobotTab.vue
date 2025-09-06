@@ -50,6 +50,7 @@ const addRobotToWorkspace = async (robot: Robot) => {
     notificationStore.showSuccess(`Robot "${robot.name}" added successfully!`)
   } catch (error) {
     console.error(`Failed to add robot ${robot.name} to workspace:`, error)
+    notificationStore.showError(`Add robot "${robot.name}" Failed: ${(error as Error).message || ''}`)
   }
 }
 
