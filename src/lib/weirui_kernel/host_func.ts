@@ -63,7 +63,7 @@ export class WeiruiKernel {
         const writer = HostResult.encode(host_result);
         const data = writer.finish();
         console.log(`[WeiruiKernel] Encoded response data: ${data.length} bytes`);
-        let app_ptr = this.robotAppExports!.wasm_new_bytes(data.length);
+        const app_ptr = this.robotAppExports!.wasm_new_bytes(data.length);
         console.log(`[WeiruiKernel] Allocated ${data.length} bytes in WASM memory at ptr: ${app_ptr}`);
         const resp_buf = new Uint8Array(this.robotAppExports!.memory.buffer, app_ptr, data.length);
         resp_buf.set(data)
@@ -85,10 +85,10 @@ export class WeiruiKernel {
         }
 
         const memory = this.wasmInstance.exports.memory as WebAssembly.Memory;
-        let result = HostResult.create();
+        const result = HostResult.create();
 
         if (ptr + len > memory.buffer.byteLength) {
-            let error = new MemoryOutOfBounds(`ptr=${ptr} len=${len} exceeds memory size ${memory.buffer.byteLength}`);
+            const error = new MemoryOutOfBounds(`ptr=${ptr} len=${len} exceeds memory size ${memory.buffer.byteLength}`);
             result.errorMessage = error.message;
             result.errorCode = error.errorCode;
             return this.WriteResp(result);
@@ -109,7 +109,7 @@ export class WeiruiKernel {
         } catch (e) {
             const err = e as Error;
             console.error(`[WeiruiKernel] Error in host function: ${err.message}`);
-            let error = new InternalError(err.message);
+            const error = new InternalError(err.message);
             result.errorMessage = error.message;
             result.errorCode = error.errorCode;
         }

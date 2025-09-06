@@ -209,7 +209,7 @@ export class MuJoCoInstance {
 
             joints.push(qpos)
         }
-        let res = new Float32Array(joints.length)
+        const res = new Float32Array(joints.length)
         res.set(joints)
         return res;
     }
@@ -554,7 +554,7 @@ export class MuJoCoInstance {
 
     updateLights(renderableData: { lights: THREE.Light[]; }) {
         const { lights } = renderableData;
-        let tmpVec = new THREE.Vector3();
+        const tmpVec = new THREE.Vector3();
         // Update light transforms.
         for (let l = 0; l < this.model.nlight; l++) {
             if (lights[l]) {
@@ -626,7 +626,7 @@ export class MuJoCoInstance {
                 ctrl_max = this.model.actuator_ctrlrange[i * 2 + 1];
             }
 
-            let ctrl = this.simulation.ctrl[i];
+            const ctrl = this.simulation.ctrl[i];
 
             // 力范围
             let force_min = -1, force_max = 1;

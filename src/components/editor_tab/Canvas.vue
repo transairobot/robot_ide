@@ -313,7 +313,7 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
     isModelLoaded.value = false
 
     // Convert file path to MuJoCo FS path format
-    let mujocoPath = modelPath
+    const mujocoPath = modelPath
 
     console.log('Loading MuJoCo model from path:', mujocoPath)
 
@@ -329,7 +329,7 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
     // Get actuator names and ranges
     actuators.value = instance.getActuatorInfo();
     console.log('Actuators:', actuators.value);
-    let jointInfo = instance.getJointInfo();
+    const jointInfo = instance.getJointInfo();
     console.log('Joints:', jointInfo);
     for (let i = 0; i < actuators.value.length; i++) {
       // Initialize with a default value, e.g., 0 or the middle of the range
@@ -343,12 +343,12 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
     // Add the root object to the scene
     scene.add(mujocoRenderableData.mujocoRoot);
 
-    let ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
     ambientLight.name = 'AmbientLight';
     scene.add(ambientLight);
 
     isModelLoaded.value = true;
-    let robotAppWasm = fileTreeStore.findItemByPath(robotAppPath || '')?.content;
+    const robotAppWasm = fileTreeStore.findItemByPath(robotAppPath || '')?.content;
     if (robotAppWasm) {
       const client = new WeiruiKernelWorkerClient(instance);
       client.init(robotAppWasm!)

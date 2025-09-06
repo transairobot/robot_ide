@@ -48,7 +48,7 @@ export const useFileTreeStore = defineStore('fileTree', () => {
 
     for (let i = 0; i < parts.length; i++) {
       currentPath += (i > 0 ? '/' : '') + parts[i]
-      let currentFile = findItemByPath(currentPath)
+      const currentFile = findItemByPath(currentPath)
       
       if (!currentFile) {
         const folder: FileItem = {
@@ -120,19 +120,44 @@ export const useFileTreeStore = defineStore('fileTree', () => {
     return files
   }
 
+  const getAllFolders = (): FileItem[] => {
+    const folders: FileItem[] = []
+    const traverse = (items: FileItem[]) => {
+      for (const item of items) {
+        if (item.type === 'folder') {
+          folders.push(item)
+          if (item.children) {
+            traverse(item.children)
+          }
+        }
+      }
+    }
+    traverse(root.value)
+    return folders
+  }
+
   const AddRobot = (buffer: ArrayBuffer): void => {
     const decompressed = unzipSync(new Uint8Array(buffer))
     
     for (const [path, data] of Object.entries(decompressed)) {
       if (data.byteLength) {
         const name = path.split('/').pop() || 'unknown'
+        // Convert SharedArrayBuffer to ArrayBuffer if needed
+        let content: ArrayBuffer;
+        if (data.buffer instanceof SharedArrayBuffer) {
+          content = new ArrayBuffer(data.byteLength);
+          new Uint8Array(content).set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+        } else {
+          content = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+        }
+        
         const newFile: FileItem = {
           name,
           path,
           type: 'file',
           size: data.byteLength,
           modified: new Date(),
-          content: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength),
+          content,
         }
         addItem(newFile)
       }
@@ -164,6 +189,7 @@ export const useFileTreeStore = defineStore('fileTree', () => {
     toggleFolder,
     selectFile,
     getFlatFileList,
+    getAllFolders,
     findItemByPath,
     AddRobot,
     loadDefaultRobot
