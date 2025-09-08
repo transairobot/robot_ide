@@ -1,5 +1,5 @@
 <template>
-  <Combobox v-model:open="open" v-model:value="selectedValue" @update:value="onSelect">
+  <Combobox v-model:open="open" v-model:value="selectedValue" @update:modelValue="onSelect">
     <ComboboxAnchor class="w-full">
       <div class="relative w-full max-w-sm items-center">
         <ComboboxInput placeholder="Search robot app..." class="w-full" @input="handleSearch">
@@ -39,6 +39,7 @@ import {
   ComboboxTrigger
 } from '@/components/ui/combobox'
 import { AppWindow, FileCode, ChevronsUpDown } from 'lucide-vue-next'
+import type { AcceptableValue } from 'reka-ui'
 
 interface Props {
   modelValue: FileItem | null
@@ -95,8 +96,11 @@ const handleSearch = (event: Event) => {
 }
 
 // Handle selection
-const onSelect = (value: string) => {
-  const selected = appFiles.value.find(app => app.path === value) || null
+const onSelect = (value: AcceptableValue) => {
+  console.log("RobotApp onSelect called with value:", value)
+  console.log("Available apps:", appFiles.value)
+  const selected = appFiles.value.find(app => app.path === value?.toString()) || null
+  console.log("Selected app:", selected)
   emit('update:modelValue', selected)
   emit('change', selected)
   open.value = false

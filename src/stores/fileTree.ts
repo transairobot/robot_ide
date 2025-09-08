@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { unzipSync } from 'fflate'
 import { writeFilesToMuJoCoFS } from '@/mujoco_wasm/MujocoInstance'
+import { defaultRobots, fetchRobotUrl } from '@/services/robotService'
 
 export interface FileItem {
   name: string
@@ -49,7 +50,7 @@ export const useFileTreeStore = defineStore('fileTree', () => {
     for (let i = 0; i < parts.length; i++) {
       currentPath += (i > 0 ? '/' : '') + parts[i]
       const currentFile = findItemByPath(currentPath)
-      
+
       if (!currentFile) {
         const folder: FileItem = {
           name: parts[i],
@@ -136,9 +137,9 @@ export const useFileTreeStore = defineStore('fileTree', () => {
     return folders
   }
 
-  const AddRobot = (buffer: ArrayBuffer): void => {
+  const AddRobot = (robot_name: string, buffer: ArrayBuffer): void => {
     const decompressed = unzipSync(new Uint8Array(buffer))
-    
+
     for (const [path, data] of Object.entries(decompressed)) {
       if (data.byteLength) {
         const name = path.split('/').pop() || 'unknown'
@@ -150,10 +151,14 @@ export const useFileTreeStore = defineStore('fileTree', () => {
         } else {
           content = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
         }
-        
+        let new_path = path;
+        if (!new_path.startsWith(robot_name + "/")) {
+          new_path = robot_name + "/" + path
+        }
+        console.log("new_path=", new_path)
         const newFile: FileItem = {
           name,
-          path,
+          path: new_path,
           type: 'file',
           size: data.byteLength,
           modified: new Date(),
@@ -162,20 +167,26 @@ export const useFileTreeStore = defineStore('fileTree', () => {
         addItem(newFile)
       }
     }
-    
+
     // Sync to MuJoCo FS
     writeFilesToMuJoCoFS(root.value)
   }
 
   const loadDefaultRobot = async (): Promise<void> => {
     try {
-      const response = await fetch('/SO101.robot.zip')
-      if (response.ok) {
-        const buffer = await response.arrayBuffer()
-        AddRobot(buffer)
+      const robots = await defaultRobots()
+      if (robots && robots.length > 0) {
+        for (const robot of robots) {
+          try {
+            const buffer = await fetchRobotUrl(robot)
+            AddRobot(robot.name, buffer)
+          } catch (robotError) {
+            console.warn(`Failed to load robot ${robot.name}:`, robotError)
+          }
+        }
       }
     } catch (error) {
-      console.warn('Failed to load default robot:', error)
+      console.warn('Failed to load default robots:', error)
     }
   }
 

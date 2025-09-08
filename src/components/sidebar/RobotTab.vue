@@ -46,7 +46,7 @@ const handleSearch = async () => {
 const addRobotToWorkspace = async (robot: Robot) => {
   try {
     const fileContent = await fetchRobotUrl(robot)
-    fileTreeStore.AddRobot(fileContent)
+    fileTreeStore.AddRobot(robot.name, fileContent)
     notificationStore.showSuccess(`Robot "${robot.name}" added successfully!`)
   } catch (error) {
     console.error(`Failed to add robot ${robot.name} to workspace:`, error)
@@ -56,6 +56,12 @@ const addRobotToWorkspace = async (robot: Robot) => {
 
 
 onMounted(async () => {
-  robots.value = await fetchRobots()
+  try {
+    robots.value = await fetchRobots()
+    console.log("robots.value=", robots.value)
+  } catch (error) {
+    console.error('Failed to fetch robots:', error)
+    notificationStore.showError(`Failed to fetch robots: ${(error as Error).message || 'Unknown error'}`)
+  }
 })
 </script>

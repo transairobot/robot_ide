@@ -1,5 +1,5 @@
 <template>
-  <Combobox v-model:open="open" v-model:value="selectedValue" @update:value="onSelect">
+  <Combobox v-model:open="open" v-model:value="selectedValue" @update:modelValue="onSelect">
     <ComboboxAnchor class="w-full">
       <div class="relative w-full max-w-sm items-center">
         <ComboboxInput placeholder="Search robot..." class="w-full" @input="handleSearch">
@@ -38,6 +38,7 @@ import {
   ComboboxTrigger
 } from '@/components/ui/combobox'
 import { Bot, FileText, ChevronsUpDown } from 'lucide-vue-next'
+import type { AcceptableValue } from 'reka-ui'
 
 interface Props {
   modelValue: FileItem | null
@@ -64,7 +65,7 @@ onMounted(() => {
 
 // Update robot files list
 const updateRobotFiles = () => {
-  const allFiles = fileTreeStore.getFlatFileList()
+  const allFiles = fileTreeStore.getAllFolders()
   robotFiles.value = allFiles.filter(file =>
     file.type === 'folder' &&
     file.name.endsWith('.robot')
@@ -94,8 +95,11 @@ const handleSearch = (event: Event) => {
 }
 
 // Handle selection
-const onSelect = (value: string) => {
-  const selected = robotFiles.value.find(robot => robot.path === value) || null
+const onSelect = (value: AcceptableValue) => {
+  console.log("onSelect called with value:", value)
+  console.log("Available robots:", robotFiles.value)
+  const selected = robotFiles.value.find(robot => robot.path === value?.toString()) || null
+  console.log("Selected robot:", selected)
   emit('update:modelValue', selected)
   emit('change', selected)
   open.value = false

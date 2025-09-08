@@ -1,22 +1,19 @@
+import { get } from './api';
+
 export interface Robot {
   id: string
   name: string
   description: string
-  url: string
+  resource_url: string
 }
 
 export const fetchRobots = async (): Promise<Robot[]> => {
   try {
-    const response = await fetch('/robot/list')
-    if (response.ok) {
-      return await response.json()
-    } else {
-      console.error('Failed to fetch robots, using mock data.')
-      return useMockData()
-    }
+    const response = await get<{ items: Robot[] }>('/robot-models');
+    return response.items;
   } catch (error) {
-    console.error('Error fetching robots:', error, ', using mock data.')
-    return useMockData()
+    console.error('Error fetching robots:', error);
+    throw error;
   }
 }
 
@@ -25,22 +22,23 @@ export const searchRobots = async (query: string): Promise<Robot[]> => {
     return fetchRobots();
   }
   try {
-    const response = await fetch(`/robot/search?q=${encodeURIComponent(query)}`);
-    if (response.ok) {
-      return await response.json();
-    } else {
-      console.error('Failed to search robots, returning empty list.');
-      return [];
-    }
+    const response = await get<{ items: Robot[] }>(`/robot/search?q=${encodeURIComponent(query)}`);
+    return response.items;
   } catch (error) {
     console.error('Error searching robots:', error);
-    return [];
+    // 如果搜索失败，返回所有机器人列表
+    try {
+      return await fetchRobots();
+    } catch (fetchError) {
+      console.error('Error fetching all robots:', fetchError);
+      return [];
+    }
   }
 };
 
 export const fetchRobotUrl = async (robot: Robot): Promise<ArrayBuffer> => {
   try {
-    const response = await fetch(robot.url)
+    const response = await fetch(robot.resource_url)
     if (response.ok) {
       return await response.arrayBuffer()
     } else {
@@ -52,11 +50,14 @@ export const fetchRobotUrl = async (robot: Robot): Promise<ArrayBuffer> => {
   }
 }
 
-const useMockData = (): Robot[] => {
-  return [
-    { id: "1", name: "SO101", description: "A 6-axis robotic arm.", url: "/SO101.robot.zip" },
-    { id: "2", name: "Humanoid", description: "A humanoid robot.", url: "/gym_humanoid.zip" },
-  ]
+export const defaultRobots = async (): Promise<Robot[]> => {
+  try {
+    const response = await get<Robot[]>('/robot-models/default');
+    return response;
+  } catch (error) {
+    console.error('Error fetching default robots:', error);
+    throw error;
+  }
 }
 
 

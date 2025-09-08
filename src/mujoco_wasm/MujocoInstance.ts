@@ -123,9 +123,9 @@ export class MuJoCoInstance {
     timestep!: number; // 0.002 seconds
     private simulationInterval: number | null = null;
 
-    constructor(filepath: string) {
-        console.log("filepath=", filepath)
-        filepath = "/working/" + filepath;
+    constructor(dirPath: string) {
+        console.log("dirPath=", dirPath)
+        let filepath = "/working/" + dirPath + "/robot.xml";
         this.model = new global_mujoco.Model(filepath);
         const opt = this.model.getOptions();
         this.timestep = opt.timestep;

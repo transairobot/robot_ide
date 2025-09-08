@@ -1,3 +1,5 @@
+import { get } from './api';
+
 export interface Scene {
   id: string
   name: string
@@ -9,13 +11,8 @@ export interface Scene {
 
 export const fetchScenes = async (): Promise<Scene[]> => {
   try {
-    // TODO: Replace with the actual backend API URL
-    const response = await fetch('/api/scenes');
-    if (!response.ok) {
-      throw new Error(`Failed to fetch scenes: ${response.status} ${response.statusText}`);
-    }
-    const data = await response.json();
-    return data.map((scene: any) => ({
+    // const scenes = await get<Scene[]>('/api/scenes');
+    return scenes.map((scene: any) => ({
       ...scene,
       visible: scene.visible ?? true // Default to true if not specified
     }));
