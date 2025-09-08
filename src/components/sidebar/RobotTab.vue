@@ -20,7 +20,7 @@
             <Plus class="w-4 h-4" />
           </Button>
           <Button v-else size="sm" variant="outline" class="h-6 px-2 text-xs" disabled>
-            Install
+            <Plus class="w-4 h-4" />
           </Button>
         </div>
       </div>

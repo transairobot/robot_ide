@@ -5,10 +5,7 @@
       <h3 class="text-sm font-medium text-foreground">Apps</h3>
     </div>
     <div class="p-3 border-b border-border">
-      <Button size="sm" class="w-full">
-        <Plus class="w-4 h-4 mr-1" />
-        Install App
-      </Button>
+      <Input v-model="searchQuery" placeholder="Search for apps..." class="w-full" @keyup.enter="handleSearch" />
     </div>
     <ScrollArea class="flex-1 p-2">
       <div
@@ -20,61 +17,128 @@
           <div class="flex-1">
             <h4 class="text-sm font-medium text-foreground">{{ app.name }}</h4>
             <p class="text-xs text-muted-foreground mt-1">{{ app.description }}</p>
-            <div class="flex items-center gap-2 mt-2">
-              <span class="text-xs text-muted-foreground">v{{ app.version }}</span>
-              <span
-                :class="[
-                  'text-xs px-2 py-0.5 rounded-full',
-                  app.installed
-                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                    : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-                ]"
-              >
-                {{ app.installed ? 'Installed' : 'Available' }}
-              </span>
-            </div>
           </div>
           <div class="flex flex-col gap-1">
             <Button
-              v-if="!app.installed"
               size="sm"
               variant="outline"
               class="h-6 px-2 text-xs"
             >
               <Download class="w-3 h-3" />
             </Button>
-            <Button
-              v-else
-              size="sm"
-              variant="outline"
-              class="h-6 px-2 text-xs text-destructive hover:text-destructive"
-            >
-              <Trash2 class="w-3 h-3" />
-            </Button>
           </div>
         </div>
       </div>
     </ScrollArea>
+    
+    <!-- Pagination Controls -->
+    <div class="p-2 border-t border-border flex items-center justify-between">
+      <div class="text-xs text-muted-foreground">
+        {{ totalItems }} items
+      </div>
+      <div class="flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="outline"
+          class="h-6 px-2 text-xs"
+          :disabled="currentPage <= 1"
+          @click="goToPreviousPage"
+        >
+          <ChevronLeft class="w-4 h-4" />
+        </Button>
+        <div class="text-xs text-muted-foreground px-2">
+          {{ currentPage }} / {{ totalPages }}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          class="h-6 px-2 text-xs"
+          :disabled="currentPage >= totalPages"
+          @click="goToNextPage"
+        >
+          <ChevronRight class="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import {Button} from '@/components/ui/button'
+import { ref, onMounted } from 'vue'
+import { Button } from '@/components/ui/button'
+import Input from '@/components/ui/Input.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
-import { Plus, Download, Trash2 } from 'lucide-vue-next'
+import { Plus, Download, Trash2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { fetchRobotApps, searchRobotApps, type RobotApp, type PaginationResponse } from '@/services'
+import { useNotificationStore } from '@/stores/notification'
 
 interface StoreItem {
   id: string
   name: string
   description: string
-  version?: string
-  installed?: boolean
 }
 
-const robotApps = ref<StoreItem[]>([
-  { id: "1", name: "Path Planning", description: "Advanced path planning algorithms", version: "1.0.2", installed: true },
-  { id: "2", name: "Object Detection", description: "Real-time object detection", version: "2.1.0", installed: false },
-  { id: "3", name: "SLAM Navigation", description: "Simultaneous localization and mapping", version: "1.5.3", installed: true },
-])
+const robotApps = ref<StoreItem[]>([])
+const searchQuery = ref('')
+const notificationStore = useNotificationStore()
+
+// Pagination state
+const currentPage = ref(1)
+const totalPages = ref(1)
+const totalItems = ref(0)
+const itemsPerPage = ref(10)
+
+const handleSearch = async () => {
+  try {
+    const response: PaginationResponse<RobotApp> = await searchRobotApps(searchQuery.value, currentPage.value, itemsPerPage.value)
+    robotApps.value = response.items
+    totalPages.value = response.total_pages
+    totalItems.value = response.total
+  } catch (error) {
+    console.error('Failed to search robot apps:', error)
+    notificationStore.showError(`Failed to search robot apps: ${(error as Error).message || 'Unknown error'}`)
+  }
+}
+
+const loadRobotApps = async (page: number = 1) => {
+  try {
+    const response: PaginationResponse<RobotApp> = await fetchRobotApps(page, itemsPerPage.value)
+    robotApps.value = response.items
+    currentPage.value = response.page
+    totalPages.value = response.total_pages
+    totalItems.value = response.total
+  } catch (error) {
+    console.error('Failed to fetch robot apps:', error)
+    notificationStore.showError(`Failed to fetch robot apps: ${(error as Error).message || 'Unknown error'}`)
+  }
+}
+
+const goToPreviousPage = () => {
+  if (currentPage.value > 1) {
+    if (searchQuery.value) {
+      handleSearch()
+    } else {
+      loadRobotApps(currentPage.value - 1)
+    }
+  }
+}
+
+const goToNextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    if (searchQuery.value) {
+      handleSearch()
+    } else {
+      loadRobotApps(currentPage.value + 1)
+    }
+  }
+}
+
+onMounted(async () => {
+  try {
+    await loadRobotApps()
+  } catch (error) {
+    console.error('Failed to fetch robot apps:', error)
+    notificationStore.showError(`Failed to fetch robot apps: ${(error as Error).message || 'Unknown error'}`)
+  }
+})
 </script>
