@@ -137,7 +137,7 @@ import TextEditor from './editor_tab/TextEditor.vue'
 import ThreeDViewer from './editor_tab/3DViewer.vue'
 import { Terminal, X, Plus, Box, FileText, FileCode, Image, Video, Archive, Package } from 'lucide-vue-next'
 import { writeFilesToMuJoCoFS } from '@/mujoco_wasm/MujocoInstance'
-import type { FileItem } from "@/stores/fileTree"
+import type { FileItem } from "@/stores/workplace"
 
 const sidebarContentCollapsed = ref(false)
 const consoleHeight = ref(200)

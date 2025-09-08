@@ -68,8 +68,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useFileTreeStore } from '@/stores/fileTree'
-import type { FileItem } from '@/stores/fileTree'
+import { useWorkplaceStore } from '@/stores/workplace'
+import type { FileItem } from '@/stores/workplace'
 import { 
   ChevronRight,
   Folder,
@@ -92,7 +92,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const fileTreeStore = useFileTreeStore()
+const workplaceStore = useWorkplaceStore()
 
 const emit = defineEmits<{
   select: [item: FileItem]
@@ -101,7 +101,7 @@ const emit = defineEmits<{
 }>()
 
 const isSelected = computed(() => {
-  return fileTreeStore.selectedFile?.path === props.item.path
+  return workplaceStore.selectedFile?.path === props.item.path
 })
 
 const toggleMenu = (event: MouseEvent) => {

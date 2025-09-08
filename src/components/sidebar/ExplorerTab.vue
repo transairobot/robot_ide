@@ -84,7 +84,7 @@
     
     <!-- Tab Header -->
     <div class="px-3 py-2 border-b border-border bg-muted/50">
-      <h3 class="text-base font-medium text-foreground">Explorer</h3>
+      <h3 class="text-base font-medium text-foreground">Workplace</h3>
     </div>
     
     <!-- Toolbar -->
@@ -140,7 +140,7 @@
     <ScrollArea class="flex-1">
       <div class="p-1.5">
         <FileTreeNode
-          v-for="item in fileTreeStore.root"
+          v-for="item in fileTree"
           :key="item.path"
           :item="item"
           :level="0"
@@ -237,14 +237,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import FileTreeNode from './FileTreeNode.vue'
 import RobotSelectorCombobox from './RobotSelectorCombobox.vue'
 import RobotAppSelectorCombobox from './RobotAppSelectorCombobox.vue'
-import { useFileTreeStore } from '@/stores/fileTree'
-import type { FileItem } from '@/stores/fileTree'
+import { useWorkplaceStore } from '@/stores/workplace'
+import type { FileItem } from '@/stores/workplace'
 import { 
   RefreshCw, 
   FilePlus, 
@@ -259,10 +259,6 @@ import {
   Square,
   Bot,
   X,
-  FileText,
-  AppWindow,
-  FileCode,
-  ChevronsUpDown
 } from 'lucide-vue-next'
 
 interface Props {
@@ -279,11 +275,12 @@ const emit = defineEmits<{
   'files-loaded': []
 }>()
 
-const fileTreeStore = useFileTreeStore()
+const workplaceStore = useWorkplaceStore()
 const selectedFile = ref<FileItem | null>(null)
 const robotFile = ref<FileItem | null>(null)
 const robotAppFile = ref<FileItem | null>(null)
 const simulationRunning = ref(false)
+const fileTree = computed(() => workplaceStore.getRootItems())
 
 // File input refs
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -341,7 +338,7 @@ const createNewFile = async () => {
     content: emptyContent
   }
   
-  fileTreeStore.addItem(newFile)
+  workplaceStore.addItem(newFile)
   console.log('Created new file:', filePath)
 }
 
@@ -360,7 +357,7 @@ const createNewFolder = async () => {
     expanded: false
   }
   
-  fileTreeStore.addItem(newFolder)
+  workplaceStore.addItem(newFolder)
   console.log('Created new folder:', folderPath)
 }
 
@@ -464,7 +461,7 @@ const uploadSingleFile = async (file: File, isFolder: boolean): Promise<void> =>
 
 // Helper function to add file to the local file tree
 const addFileToTree = (fileItem: FileItem, relativePath?: string) => {
-  fileTreeStore.addItem(fileItem)
+  workplaceStore.addItem(fileItem)
 }
 
 // Helper function to read file content as binary
@@ -595,7 +592,7 @@ const selectFile = async (item: FileItem) => {
   console.log('Selected file:', item.path)
   
   // Select file in FileTree
-  fileTreeStore.selectFile(item.path)
+  workplaceStore.selectFile(item.path)
   
   // Emit file selection event to parent
   emit('file-selected', item)
@@ -607,7 +604,7 @@ const selectFile = async (item: FileItem) => {
 }
 
 const toggleFolder = (item: FileItem) => {
-  fileTreeStore.toggleFolder(item.path)
+  workplaceStore.toggleFolder(item.path)
 }
 
 const showContextMenu = (event: MouseEvent, item: FileItem) => {
@@ -675,7 +672,7 @@ const executeAction = async (action: string) => {
       
     case 'delete':
       if (confirm(`Are you sure you want to delete "${item.name}"?`)) {
-        removeFileFromTree(item)
+        workplaceStore.removeFileFromTree(item)
         console.log('Deleted:', item.path)
       }
       break
@@ -684,30 +681,13 @@ const executeAction = async (action: string) => {
   contextMenu.value.show = false
 }
 
-// Helper function to remove file from tree
-const removeFileFromTree = (itemToRemove: FileItem) => {
-  // Remove from store by finding and removing from parent
-  const parentPath = itemToRemove.path.substring(0, itemToRemove.path.lastIndexOf('/'))
-  if (!parentPath) {
-    // Remove from root
-    const index = fileTreeStore.root.findIndex(item => item.path === itemToRemove.path)
-    if (index > -1) fileTreeStore.root.splice(index, 1)
-  } else {
-    const parent = fileTreeStore.findItemByPath(parentPath)
-    if (parent && parent.children) {
-      const index = parent.children.findIndex(item => item.path === itemToRemove.path)
-      if (index > -1) parent.children.splice(index, 1)
-    }
-  }
-}
-
 const hideContextMenu = () => {
   contextMenu.value.show = false
 }
 
 // 暴露文件树给父组件
 defineExpose({
-  getFileTree: () => fileTreeStore.root
+  getFileTree: () => workplaceStore.getFlatFileList()
 })
 
 onMounted(() => {

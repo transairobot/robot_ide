@@ -100,7 +100,7 @@ import {
 } from 'lucide-vue-next'
 import { MuJoCoInstance, ActuatorInfo } from '@/mujoco_wasm/MujocoInstance';
 import { WeiruiKernelWorkerClient } from '@/lib/weirui_kernel/worker_client';
-import { useFileTreeStore } from '@/stores/fileTree';
+import { useWorkplaceStore } from '@/stores/workplace';
 import { WebGPURenderer } from 'three/webgpu';
 
 interface Props {
@@ -111,7 +111,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const fileTreeStore = useFileTreeStore()
+const workplaceStore = useWorkplaceStore();
 
 const rendererContainerRef = ref<HTMLDivElement | null>(null);
 const isModelLoaded = ref(false);
@@ -348,7 +348,7 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
     scene.add(ambientLight);
 
     isModelLoaded.value = true;
-    const robotAppWasm = fileTreeStore.findItemByPath(robotAppPath || '')?.content;
+    const robotAppWasm = workplaceStore.findItemByPath(robotAppPath || '')?.content;
     if (robotAppWasm) {
       const client = new WeiruiKernelWorkerClient(instance);
       client.init(robotAppWasm!)

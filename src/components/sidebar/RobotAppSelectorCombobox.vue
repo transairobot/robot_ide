@@ -26,8 +26,8 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { useFileTreeStore } from '@/stores/fileTree'
-import type { FileItem } from '@/stores/fileTree'
+import { useWorkplaceStore } from '@/stores/workplace'
+import type { FileItem } from '@/stores/workplace'
 import {
   Combobox,
   ComboboxAnchor,
@@ -53,7 +53,7 @@ interface Emits {
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const fileTreeStore = useFileTreeStore()
+const workplaceStore = useWorkplaceStore()
 const open = ref(false)
 const searchQuery = ref('')
 const selectedValue = ref(props.modelValue?.path || '')
@@ -66,7 +66,7 @@ onMounted(() => {
 
 // Update app files list
 const updateAppFiles = () => {
-  const allFiles = fileTreeStore.getFlatFileList()
+  const allFiles = workplaceStore.getFlatFileList()
   appFiles.value = allFiles.filter(file =>
     file.type === 'file' &&
     file.name.endsWith('.wasm')
@@ -112,7 +112,7 @@ watch(() => props.modelValue, (newVal) => {
 })
 
 // Watch for file tree changes
-watch(() => fileTreeStore.root, () => {
+watch(() => workplaceStore.root, () => {
   updateAppFiles()
 }, { deep: true })
 </script>

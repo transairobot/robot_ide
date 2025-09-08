@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { unzipSync } from 'fflate'
 import { writeFilesToMuJoCoFS } from '@/mujoco_wasm/MujocoInstance'
-import { defaultRobots, fetchRobotUrl } from '@/services/robotService'
+import { type Robot, defaultRobots, fetchRobotUrl } from '@/services/robotService'
 
 export interface FileItem {
   name: string
@@ -15,9 +15,10 @@ export interface FileItem {
   expanded?: boolean
 }
 
-export const useFileTreeStore = defineStore('fileTree', () => {
+export const useWorkplaceStore = defineStore('workplace', () => {
   const root = ref<FileItem[]>([])
   const selectedFile = ref<FileItem | null>(null)
+  const robots = ref<Map<string, { robot: Robot; path: string }>>(new Map())
 
   const sortItems = (items: FileItem[]): FileItem[] => {
     return items.sort((a, b) => {
@@ -137,7 +138,65 @@ export const useFileTreeStore = defineStore('fileTree', () => {
     return folders
   }
 
-  const AddRobot = (robot_name: string, buffer: ArrayBuffer): void => {
+  const getRootItems = (): FileItem[] => {
+    return root.value
+  }
+
+  const addRobot = async (robot: Robot): Promise<void> => {
+    try {
+      const buffer = await fetchRobotUrl(robot)
+      addRobotFromFile(robot.name, buffer)
+      // Store the robot and its path in the map
+      robots.value.set(robot.id, { robot, path: robot.name })
+    } catch (error) {
+      console.error(`Failed to add robot ${robot.name}:`, error)
+      throw error
+    }
+  }
+
+  const getRobotById = (id: string): Robot | undefined => {
+    return robots.value.get(id)?.robot
+  }
+
+  const getRobotPath = (id: string): string | undefined => {
+    return robots.value.get(id)?.path
+  }
+
+  const loadDefaultRobot = async (): Promise<void> => {
+    try {
+      const robots = await defaultRobots()
+      if (robots && robots.length > 0) {
+        for (const robot of robots) {
+          try {
+            await addRobot(robot)
+          } catch (robotError) {
+            console.warn(`Failed to load robot ${robot.name}:`, robotError)
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load default robots:', error)
+    }
+  }
+
+  const removeFileFromTree = (itemToRemove: FileItem) => {
+    // Remove from store by finding and removing from parent
+    const parentPath = itemToRemove.path.substring(0, itemToRemove.path.lastIndexOf('/'))
+    if (!parentPath) {
+      // Remove from root
+      const index = root.value.findIndex(item => item.path === itemToRemove.path)
+      if (index > -1) root.value.splice(index, 1)
+    } else {
+      const parent = findItemByPath(parentPath)
+      if (parent && parent.children) {
+        const index = parent.children.findIndex(item => item.path === itemToRemove.path)
+        if (index > -1) parent.children.splice(index, 1)
+      }
+    }
+  }
+
+  // Helper function to maintain the existing functionality
+  const addRobotFromFile = (robot_name: string, buffer: ArrayBuffer): void => {
     const decompressed = unzipSync(new Uint8Array(buffer))
 
     for (const [path, data] of Object.entries(decompressed)) {
@@ -155,7 +214,6 @@ export const useFileTreeStore = defineStore('fileTree', () => {
         if (!new_path.startsWith(robot_name + "/")) {
           new_path = robot_name + "/" + path
         }
-        console.log("new_path=", new_path)
         const newFile: FileItem = {
           name,
           path: new_path,
@@ -172,37 +230,23 @@ export const useFileTreeStore = defineStore('fileTree', () => {
     writeFilesToMuJoCoFS(root.value)
   }
 
-  const loadDefaultRobot = async (): Promise<void> => {
-    try {
-      const robots = await defaultRobots()
-      if (robots && robots.length > 0) {
-        for (const robot of robots) {
-          try {
-            const buffer = await fetchRobotUrl(robot)
-            AddRobot(robot.name, buffer)
-          } catch (robotError) {
-            console.warn(`Failed to load robot ${robot.name}:`, robotError)
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to load default robots:', error)
-    }
-  }
-
   // Load default robot asynchronously without blocking store creation
   setTimeout(() => loadDefaultRobot(), 0)
 
   return {
-    root,
     selectedFile,
     addItem,
     toggleFolder,
     selectFile,
     getFlatFileList,
     getAllFolders,
+    getRootItems,
     findItemByPath,
-    AddRobot,
-    loadDefaultRobot
+    addRobot,
+    addRobotFromFile,
+    loadDefaultRobot,
+    getRobotById,
+    getRobotPath,
+    removeFileFromTree
   }
 })
