@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { unzipSync } from 'fflate'
 import { writeFilesToMuJoCoFS } from '@/mujoco_wasm/MujocoInstance'
 import { type Robot, defaultRobots, fetchRobotUrl } from '@/services/robotService'
+import { type RobotApp, defaultRobotApps, fetchRobotAppResource } from '@/services/robotAppService'
 
 export interface FileItem {
   name: string
@@ -134,7 +135,7 @@ export const useWorkplaceStore = defineStore('workplace', () => {
         }
       }
     }
-    traverse(root.value)
+    traverse(getRootItems())
     return folders
   }
 
@@ -176,6 +177,23 @@ export const useWorkplaceStore = defineStore('workplace', () => {
       }
     } catch (error) {
       console.warn('Failed to load default robots:', error)
+    }
+  }
+
+  const loadDefaultRobotApp = async (): Promise<void> => {
+    try {
+      const apps = await defaultRobotApps()
+      if (apps && apps.length > 0) {
+        for (const app of apps) {
+          try {
+            await addRobotApp(app)
+          } catch (appError) {
+            console.warn(`Failed to load robot app ${app.name}:`, appError)
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load default robot apps:', error)
     }
   }
 
@@ -230,10 +248,43 @@ export const useWorkplaceStore = defineStore('workplace', () => {
     writeFilesToMuJoCoFS(root.value)
   }
 
+  const addRobotApp = async (app: RobotApp): Promise<void> => {
+    try {
+      // Fetch the app resource
+      const buffer = await fetchRobotAppResource(app);
+      
+      // Use the existing addRobotFromFile function to handle the unzip and file creation
+      addRobotFromFile(app.name, buffer);
+      
+      // Store the app info in the robots map for consistency
+      robots.value.set(app.id, { 
+        robot: { 
+          id: app.id, 
+          name: app.name, 
+          description: app.description,
+          resource_url: app.resource_url
+        }, 
+        path: app.name 
+      });
+    } catch (error) {
+      console.error(`Failed to add robot app ${app.name}:`, error);
+      throw error;
+    }
+  }
+
   // Load default robot asynchronously without blocking store creation
-  setTimeout(() => loadDefaultRobot(), 0)
+  // First load robot apps, then load robots
+  setTimeout(async () => {
+    try {
+      await loadDefaultRobotApp()
+      await loadDefaultRobot()
+    } catch (error) {
+      console.error('Failed to load default content:', error)
+    }
+  }, 0)
 
   return {
+    root,
     selectedFile,
     addItem,
     toggleFolder,
@@ -243,8 +294,7 @@ export const useWorkplaceStore = defineStore('workplace', () => {
     getRootItems,
     findItemByPath,
     addRobot,
-    addRobotFromFile,
-    loadDefaultRobot,
+    addRobotApp,
     getRobotById,
     getRobotPath,
     removeFileFromTree

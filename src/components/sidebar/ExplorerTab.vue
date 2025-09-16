@@ -39,18 +39,6 @@
       <div class="mb-1.5">
         <div class="text-xs text-gray-600 mb-0.5 flex justify-between items-center font-mono">
           <span>Robot:</span>
-          <div class="flex gap-0.5">
-            <Button
-              v-if="robotFile"
-              size="sm"
-              variant="ghost"
-              class="h-4 w-4 p-0"
-              @click="removeRobot"
-              title="Remove Robot"
-            >
-              <X class="w-2.5 h-2.5" />
-            </Button>
-          </div>
         </div>
         <RobotSelectorCombobox
           v-model="robotFile"
@@ -62,18 +50,6 @@
       <div>
         <div class="text-xs text-gray-600 mb-0.5 flex justify-between items-center font-mono">
           <span>App:</span>
-          <div class="flex gap-0.5">
-            <Button
-              v-if="robotAppFile"
-              size="sm"
-              variant="ghost"
-              class="h-4 w-4 p-0"
-              @click="removeRobotApp"
-              title="Remove Robot App"
-            >
-              <X class="w-2.5 h-2.5" />
-            </Button>
-          </div>
         </div>
         <RobotAppSelectorCombobox
           v-model="robotAppFile"

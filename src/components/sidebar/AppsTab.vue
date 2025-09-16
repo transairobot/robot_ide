@@ -8,54 +8,46 @@
       <Input v-model="searchQuery" placeholder="Search for apps..." class="w-full" @keyup.enter="handleSearch" />
     </div>
     <ScrollArea class="flex-1 p-2">
-      <div
-        v-for="app in robotApps"
-        :key="app.id"
-        class="p-3 mb-2 bg-background rounded-lg border border-border hover:bg-muted transition-colors"
-      >
+      <div v-for="app in robotApps" :key="app.id"
+        class="p-3 mb-2 bg-background rounded-lg border border-border hover:bg-muted transition-colors">
         <div class="flex items-start justify-between">
           <div class="flex-1">
             <h4 class="text-sm font-medium text-foreground">{{ app.name }}</h4>
             <p class="text-xs text-muted-foreground mt-1">{{ app.description }}</p>
           </div>
           <div class="flex flex-col gap-1">
-            <Button
-              size="sm"
-              variant="outline"
-              class="h-6 px-2 text-xs"
-            >
-              <Download class="w-3 h-3" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button size="sm" variant="outline" class="h-6 px-2 text-xs" @click="addToWorkplace(app)">
+                    <Plus class="w-3 h-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>add to workplace</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </div>
     </ScrollArea>
-    
+
     <!-- Pagination Controls -->
     <div class="p-2 border-t border-border flex items-center justify-between">
       <div class="text-xs text-muted-foreground">
         {{ totalItems }} items
       </div>
       <div class="flex items-center gap-1">
-        <Button
-          size="sm"
-          variant="outline"
-          class="h-6 px-2 text-xs"
-          :disabled="currentPage <= 1"
-          @click="goToPreviousPage"
-        >
+        <Button size="sm" variant="outline" class="h-6 px-2 text-xs" :disabled="currentPage <= 1"
+          @click="goToPreviousPage">
           <ChevronLeft class="w-4 h-4" />
         </Button>
         <div class="text-xs text-muted-foreground px-2">
           {{ currentPage }} / {{ totalPages }}
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          class="h-6 px-2 text-xs"
-          :disabled="currentPage >= totalPages"
-          @click="goToNextPage"
-        >
+        <Button size="sm" variant="outline" class="h-6 px-2 text-xs" :disabled="currentPage >= totalPages"
+          @click="goToNextPage">
           <ChevronRight class="w-4 h-4" />
         </Button>
       </div>
@@ -69,18 +61,21 @@ import { Button } from '@/components/ui/button'
 import Input from '@/components/ui/Input.vue'
 import ScrollArea from '@/components/ui/ScrollArea.vue'
 import { Plus, Download, Trash2, ChevronLeft, ChevronRight } from 'lucide-vue-next'
-import { fetchRobotApps, searchRobotApps, type RobotApp, type PaginationResponse } from '@/services'
+import { fetchRobotApps, searchRobotApps, type RobotApp } from '@/services/robotAppService'
+import { type PaginationResponse } from '@/services/base'
 import { useNotificationStore } from '@/stores/notification'
+import { useWorkplaceStore } from '@/stores/workplace'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
-interface StoreItem {
-  id: string
-  name: string
-  description: string
-}
-
-const robotApps = ref<StoreItem[]>([])
+const robotApps = ref<RobotApp[]>([])
 const searchQuery = ref('')
 const notificationStore = useNotificationStore()
+const workplaceStore = useWorkplaceStore()
 
 // Pagination state
 const currentPage = ref(1)
@@ -97,6 +92,16 @@ const handleSearch = async () => {
   } catch (error) {
     console.error('Failed to search robot apps:', error)
     notificationStore.showError(`Failed to search robot apps: ${(error as Error).message || 'Unknown error'}`)
+  }
+}
+
+const addToWorkplace = async (app: RobotApp) => {
+  try {
+    await workplaceStore.addRobotApp(app)
+    notificationStore.showSuccess(`Successfully added ${app.name} to workplace`)
+  } catch (error) {
+    console.error('Failed to add app to workplace:', error)
+    notificationStore.showError(`Failed to add ${app.name} to workplace: ${(error as Error).message || 'Unknown error'}`)
   }
 }
 

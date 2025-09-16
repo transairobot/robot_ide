@@ -348,7 +348,8 @@ const initializeMuJoCo = async (modelPath: string, robotAppPath?: string, sceneP
     scene.add(ambientLight);
 
     isModelLoaded.value = true;
-    const robotAppWasm = workplaceStore.findItemByPath(robotAppPath || '')?.content;
+    console.log("robotAppPath=", robotAppPath)
+    const robotAppWasm = workplaceStore.findItemByPath(robotAppPath + "/robotapp.wasm" || '')?.content;
     if (robotAppWasm) {
       const client = new WeiruiKernelWorkerClient(instance);
       client.init(robotAppWasm!)

@@ -66,10 +66,10 @@ onMounted(() => {
 
 // Update app files list
 const updateAppFiles = () => {
-  const allFiles = workplaceStore.getFlatFileList()
+  const allFiles = workplaceStore.getAllFolders()
   appFiles.value = allFiles.filter(file =>
-    file.type === 'file' &&
-    file.name.endsWith('.wasm')
+    file.type === 'folder' &&
+    file.name.endsWith('.robotapp')
   )
 }
 
@@ -97,10 +97,7 @@ const handleSearch = (event: Event) => {
 
 // Handle selection
 const onSelect = (value: AcceptableValue) => {
-  console.log("RobotApp onSelect called with value:", value)
-  console.log("Available apps:", appFiles.value)
   const selected = appFiles.value.find(app => app.path === value?.toString()) || null
-  console.log("Selected app:", selected)
   emit('update:modelValue', selected)
   emit('change', selected)
   open.value = false

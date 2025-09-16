@@ -46,3 +46,17 @@ export const searchRobotApps = async (keyword: string, page: number = 1, limit: 
     throw error;
   }
 };
+
+// Fetch robot app resource as ArrayBuffer
+export const fetchRobotAppResource = async (app: RobotApp): Promise<ArrayBuffer> => {
+  try {
+    const response = await fetch(app.resource_url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch robot app resource: ${response.status} ${response.statusText}`);
+    }
+    return await response.arrayBuffer();
+  } catch (error) {
+    console.error(`Error fetching robot app resource from ${app.resource_url}:`, error);
+    throw error;
+  }
+};
